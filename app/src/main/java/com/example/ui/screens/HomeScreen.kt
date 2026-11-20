@@ -119,7 +119,7 @@ fun HomeScreen(
                             )
                         } else {
                             Text(
-                                text = userProfile.name.take(1),
+                                text = userProfile.displayInitial,
                                 color = Color.White,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 16.sp

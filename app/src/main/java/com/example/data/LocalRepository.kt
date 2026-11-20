@@ -7,11 +7,17 @@ import com.example.model.FriendStatus
 import com.example.model.FriendUser
 import com.example.model.NotificationModel
 import com.example.model.PostModel
+import com.example.model.ReviewModel
+import com.example.model.ReviewStatus
 import com.example.model.UserProfile
 import org.json.JSONArray
 import org.json.JSONObject
+import java.io.File
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
-class LocalRepository(context: Context) {
+class LocalRepository(private val context: Context) {
     private val prefs: SharedPreferences =
         context.getSharedPreferences("yourplatform_prefs", Context.MODE_PRIVATE)
 
@@ -21,6 +27,10 @@ class LocalRepository(context: Context) {
         private const val KEY_PROFILE = "profile_json"
         private const val KEY_NOTIFICATIONS = "notifications_json"
         private const val KEY_FRIENDS = "friends_json"
+        private const val KEY_REVIEWS = "reviews_json"
+        private const val KEY_LAST_EXPORT_PATH = "last_export_path"
+        private const val KEY_LAST_EXPORT_TIME = "last_export_time"
+        const val EXTERNAL_STORAGE_URL = "https://1024terabox.com/s/1c-9JfS24NJeK7eox0Slajw"
     }
 
     fun loadPosts(): List<PostModel> {
@@ -40,10 +50,15 @@ class LocalRepository(context: Context) {
                 for (c in 0 until commentsArray.length()) {
                     commentsList.add(commentsArray.getString(c))
                 }
+                val loadedUserName = obj.getString("userName")
+                // Migrate legacy default post author away from hardcoded personal name
+                if (loadedUserName == "আজাদ হোসেন" && obj.optString("id") == "2") {
+                    continue
+                }
                 list.add(
                     PostModel(
                         id = obj.getString("id"),
-                        userName = obj.getString("userName"),
+                        userName = loadedUserName,
                         timeAgo = obj.getString("timeAgo"),
                         postText = obj.getString("postText"),
                         mediaUri = if (obj.has("mediaUri") && !obj.isNull("mediaUri")) obj.getString("mediaUri") else null,
@@ -57,7 +72,7 @@ class LocalRepository(context: Context) {
                     )
                 )
             }
-            list
+            if (list.isEmpty()) getDefaultPosts() else list
         } catch (e: Exception) {
             getDefaultPosts()
         }
@@ -90,11 +105,25 @@ class LocalRepository(context: Context) {
         val raw = prefs.getString(KEY_PROFILE, null) ?: return UserProfile()
         return try {
             val obj = JSONObject(raw)
+            val rawName = obj.optString("name", "Guest User")
+            val rawHandle = obj.optString("handle", "")
+            // Migrate legacy hardcoded default profile to clean "0" followers & identity setup
+            if (rawName == "আজাদ হোসেন" && rawHandle == "@azadhossen") {
+                val migrated = UserProfile()
+                saveProfile(migrated)
+                return migrated
+            }
+            val rawUserId = obj.optString("userId", rawHandle.removePrefix("@"))
+            val rawFollowers = obj.optString("followersCount", "0")
+            val normalizedFollowers = if (rawFollowers == "১.২K") "0" else rawFollowers
             UserProfile(
-                name = obj.optString("name", "আজাদ হোসেন"),
-                handle = obj.optString("handle", "@azadhossen"),
-                bio = obj.optString("bio", "YOURPLATFORM কন্টেন্ট ক্রিয়েটর 🚀"),
-                followersCount = obj.optString("followersCount", "১.২K"),
+                name = rawName,
+                userId = rawUserId,
+                handle = if (rawHandle.isNotBlank()) rawHandle else if (rawUserId.isNotBlank()) "@$rawUserId" else "",
+                bio = obj.optString("bio", ""),
+                followersCount = normalizedFollowers,
+                isProfileCreated = obj.optBoolean("isProfileCreated", rawUserId.isNotBlank() && rawName != "Guest User"),
+                createdAtTimestamp = obj.optLong("createdAtTimestamp", 0L),
                 coverColorHex = obj.optLong("coverColorHex", 0xFF3F51B5),
                 coverImageUri = if (obj.has("coverImageUri") && !obj.isNull("coverImageUri")) obj.getString("coverImageUri") else null,
                 avatarColorHex = obj.optLong("avatarColorHex", 0xFF5352ED),
@@ -108,9 +137,12 @@ class LocalRepository(context: Context) {
     fun saveProfile(profile: UserProfile) {
         val obj = JSONObject()
         obj.put("name", profile.name)
+        obj.put("userId", profile.userId)
         obj.put("handle", profile.handle)
         obj.put("bio", profile.bio)
         obj.put("followersCount", profile.followersCount)
+        obj.put("isProfileCreated", profile.isProfileCreated)
+        obj.put("createdAtTimestamp", profile.createdAtTimestamp)
         obj.put("coverColorHex", profile.coverColorHex)
         obj.put("coverImageUri", profile.coverImageUri)
         obj.put("avatarColorHex", profile.avatarColorHex)
@@ -188,29 +220,175 @@ class LocalRepository(context: Context) {
         prefs.edit().putString(KEY_NOTIFICATIONS, array.toString()).apply()
     }
 
+    fun loadReviews(): List<ReviewModel> {
+        val raw = prefs.getString(KEY_REVIEWS, null) ?: return emptyList()
+        return try {
+            val jsonArray = JSONArray(raw)
+            val list = mutableListOf<ReviewModel>()
+            for (i in 0 until jsonArray.length()) {
+                val obj = jsonArray.getJSONObject(i)
+                val statusName = obj.optString("status", ReviewStatus.APPROVED.name)
+                val status = try {
+                    ReviewStatus.valueOf(statusName)
+                } catch (_: Exception) {
+                    ReviewStatus.APPROVED
+                }
+                list.add(
+                    ReviewModel(
+                        id = obj.getString("id"),
+                        userId = obj.optString("userId", ""),
+                        userName = obj.optString("userName", "User"),
+                        rating = obj.optInt("rating", 5).coerceIn(1, 5),
+                        comment = obj.optString("comment", ""),
+                        timestamp = obj.optLong("timestamp", System.currentTimeMillis()),
+                        timeAgo = obj.optString("timeAgo", ""),
+                        status = status,
+                        isPinned = obj.optBoolean("isPinned", false)
+                    )
+                )
+            }
+            list
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+
+    fun saveReviews(reviews: List<ReviewModel>) {
+        val array = JSONArray()
+        for (r in reviews) {
+            val obj = JSONObject()
+            obj.put("id", r.id)
+            obj.put("userId", r.userId)
+            obj.put("userName", r.userName)
+            obj.put("rating", r.rating)
+            obj.put("comment", r.comment)
+            obj.put("timestamp", r.timestamp)
+            obj.put("timeAgo", r.timeAgo)
+            obj.put("status", r.status.name)
+            obj.put("isPinned", r.isPinned)
+            array.put(obj)
+        }
+        prefs.edit().putString(KEY_REVIEWS, array.toString()).apply()
+    }
+
+    fun buildCollectedUserDataJson(
+        profile: UserProfile,
+        posts: List<PostModel>,
+        friends: List<FriendUser>,
+        reviews: List<ReviewModel>,
+        settings: AppSettings
+    ): String {
+        val now = System.currentTimeMillis()
+        val isoFormatter = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US)
+        val root = JSONObject()
+        root.put("app", "YOURPLATFORM")
+        root.put("externalStorageReferenceUrl", EXTERNAL_STORAGE_URL)
+        root.put("collectedAtMillis", now)
+        root.put("collectedAtIso", isoFormatter.format(Date(now)))
+
+        val profileObj = JSONObject().apply {
+            put("userName", profile.name)
+            put("userId", profile.displayUserId)
+            put("handle", profile.handle)
+            put("bio", profile.bio)
+            put("followersCount", profile.followersCount)
+            put("isProfileCreated", profile.isProfileCreated)
+            put("createdAtTimestamp", profile.createdAtTimestamp)
+        }
+        root.put("userProfile", profileObj)
+
+        val userPosts = posts.filter { it.isUserPost }
+        val statsObj = JSONObject().apply {
+            put("totalFeedPosts", posts.size)
+            put("userPostsCount", userPosts.size)
+            put("friendsCount", friends.count { it.status == FriendStatus.FRIEND })
+            put("pendingRequestsCount", friends.count { it.status == FriendStatus.INCOMING_REQUEST })
+            put("reviewsCount", reviews.size)
+            put("approvedReviewsCount", reviews.count { it.status == ReviewStatus.APPROVED })
+        }
+        root.put("stats", statsObj)
+
+        val reviewsArr = JSONArray()
+        reviews.forEach { r ->
+            reviewsArr.put(
+                JSONObject().apply {
+                    put("id", r.id)
+                    put("userId", r.userId)
+                    put("userName", r.userName)
+                    put("rating", r.rating)
+                    put("comment", r.comment)
+                    put("status", r.status.name)
+                    put("isPinned", r.isPinned)
+                    put("timestamp", r.timestamp)
+                }
+            )
+        }
+        root.put("reviews", reviewsArr)
+
+        val postsArr = JSONArray()
+        userPosts.forEach { p ->
+            postsArr.put(
+                JSONObject().apply {
+                    put("id", p.id)
+                    put("userName", p.userName)
+                    put("postText", p.postText)
+                    put("mediaType", p.mediaType)
+                    put("isVideo", p.isVideo)
+                    put("mediaUri", p.mediaUri)
+                    put("likeCount", p.likeCount)
+                    put("commentsCount", p.comments.size)
+                }
+            )
+        }
+        root.put("userPosts", postsArr)
+
+        val settingsObj = JSONObject().apply {
+            put("selectedLanguage", settings.selectedLanguage)
+            put("selectedLanguageCode", settings.selectedLanguageCode)
+            put("isDarkMode", settings.isDarkMode)
+            put("isLocationAllowed", settings.isLocationAllowed)
+        }
+        root.put("settings", settingsObj)
+
+        return root.toString(2)
+    }
+
+    fun exportCollectedUserDataToFile(jsonContent: String, userId: String): File? {
+        return try {
+            val exportDir = File(context.filesDir, "exports")
+            if (!exportDir.exists()) exportDir.mkdirs()
+            val safeId = userId.replace(Regex("[^a-zA-Z0-9_-]"), "_").ifBlank { "user" }
+            val outFile = File(exportDir, "yourplatform_data_${safeId}_${System.currentTimeMillis()}.json")
+            outFile.writeText(jsonContent, Charsets.UTF_8)
+            val now = System.currentTimeMillis()
+            prefs.edit()
+                .putString(KEY_LAST_EXPORT_PATH, outFile.absolutePath)
+                .putLong(KEY_LAST_EXPORT_TIME, now)
+                .apply()
+            outFile
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    fun getLastExportPath(): String? = prefs.getString(KEY_LAST_EXPORT_PATH, null)
+    fun getLastExportTime(): Long? {
+        val v = prefs.getLong(KEY_LAST_EXPORT_TIME, -1L)
+        return if (v > 0L) v else null
+    }
+
     private fun getDefaultPosts(): List<PostModel> {
         return listOf(
             PostModel(
                 id = "1",
                 userName = "YOURPLATFORM Official",
                 timeAgo = "২ মিনিট আগে",
-                postText = "YOURPLATFORM-এ আপনাকে স্বাগতম! আপনার কভার ফটো এবং প্রোফাইল পিকচার এডিট করতে প্রোফাইলে যান।",
+                postText = "YOURPLATFORM-এ আপনাকে স্বাগতম! আপনার User Name এবং User ID তৈরি করে পোস্ট, রিলস ও রিভিউ শেয়ার শুরু করুন।",
                 mediaType = "gradient",
                 likeCount = 18,
                 comments = listOf("দারুণ অভিজ্ঞতা!"),
                 isLiked = false,
                 isUserPost = false
-            ),
-            PostModel(
-                id = "2",
-                userName = "আজাদ হোসেন",
-                timeAgo = "১ ঘণ্টা আগে",
-                postText = "নতুন ক্যামেরা, গ্যালারি ও রিলস আপলোড সাপোর্ট যুক্ত করা হলো।",
-                mediaType = "text",
-                likeCount = 52,
-                comments = listOf("অভিনন্দন ভাই!"),
-                isLiked = false,
-                isUserPost = true
             )
         )
     }
@@ -298,7 +476,6 @@ class LocalRepository(context: Context) {
 
     private fun getDefaultFriends(): List<FriendUser> {
         return listOf(
-            // Incoming Friend Requests
             FriendUser(
                 id = "u_req_1",
                 name = "তানভীর আহমেদ",
@@ -344,8 +521,6 @@ class LocalRepository(context: Context) {
                 status = FriendStatus.INCOMING_REQUEST,
                 requestTimeAgo = "২ দিন আগে"
             ),
-
-            // Accepted Friends
             FriendUser(
                 id = "u_fr_1",
                 name = "মাহমুদ হাসান",
@@ -398,8 +573,6 @@ class LocalRepository(context: Context) {
                 isOnline = false,
                 status = FriendStatus.FRIEND
             ),
-
-            // Suggestions (People You May Know)
             FriendUser(
                 id = "u_sug_1",
                 name = "জুবায়ের খান",

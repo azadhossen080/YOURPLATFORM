@@ -4,6 +4,7 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
@@ -41,6 +42,7 @@ import com.example.ui.components.ActivityCenterSheet
 import com.example.ui.components.AppHeader
 import com.example.ui.components.BottomNavBar
 import com.example.ui.components.CommentBottomSheet
+import com.example.ui.components.CreateIdentityDialog
 import com.example.ui.components.QrCodeDialog
 import com.example.ui.screens.AiStudioScreen
 import com.example.ui.screens.CreatePostScreen
@@ -48,6 +50,7 @@ import com.example.ui.screens.FriendsScreen
 import com.example.ui.screens.HomeScreen
 import com.example.ui.screens.NotificationsScreen
 import com.example.ui.screens.ProfileScreen
+import com.example.ui.screens.ReviewsAndStorageScreen
 import com.example.ui.screens.SearchScreen
 import com.example.ui.screens.SettingsScreen
 import com.example.ui.screens.SplashScreen
@@ -64,7 +67,8 @@ enum class SubScreen {
     NOTIFICATIONS,
     SETTINGS,
     AI_STUDIO,
-    FRIENDS
+    FRIENDS,
+    REVIEWS_STORAGE
 }
 
 class MainActivity : ComponentActivity() {
@@ -113,6 +117,13 @@ class MainActivity : ComponentActivity() {
                             val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                             val clip = ClipData.newPlainText("Post Link", text)
                             clipboard.setPrimaryClip(clip)
+                        },
+                        onOpenUrl = { url ->
+                            try {
+                                val browserIntent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+                                startActivity(browserIntent)
+                            } catch (_: Exception) {
+                            }
                         }
                     )
                 }
@@ -126,7 +137,8 @@ class MainActivity : ComponentActivity() {
 fun MainAppContent(
     viewModel: PlatformViewModel,
     onShareText: (String) -> Unit,
-    onCopyText: (String) -> Unit
+    onCopyText: (String) -> Unit,
+    onOpenUrl: (String) -> Unit
 ) {
     val strings = LocalAppStrings.current
     var showSplash by remember { mutableStateOf(true) }
@@ -134,6 +146,7 @@ fun MainAppContent(
     var activeCommentPost by remember { mutableStateOf<PostModel?>(null) }
     var showQrDialog by remember { mutableStateOf(false) }
     var showActivityCenter by remember { mutableStateOf(false) }
+    var showEditIdentityDialog by remember { mutableStateOf(false) }
     var createPostInitialText by remember { mutableStateOf("") }
 
     val snackbarHostState = remember { SnackbarHostState() }
@@ -144,6 +157,9 @@ fun MainAppContent(
     val settings by viewModel.settings.collectAsState()
     val notifications by viewModel.notifications.collectAsState()
     val friends by viewModel.friends.collectAsState()
+    val reviews by viewModel.reviews.collectAsState()
+    val lastExportPath by viewModel.lastExportPath.collectAsState()
+    val lastExportTimestamp by viewModel.lastExportTimestamp.collectAsState()
     val selectedTab by viewModel.selectedTab.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
     val uploadState by viewModel.uploadState.collectAsState()
@@ -204,8 +220,40 @@ fun MainAppContent(
                     userPosts = posts.filter { it.isUserPost },
                     onUpdateSettings = { viewModel.updateSettings(it) },
                     onDeletePost = { viewModel.deletePost(it) },
+                    onOpenReviewsAndStorage = { activeSubScreen = SubScreen.REVIEWS_STORAGE },
                     onBack = { activeSubScreen = null },
                     onShowSnackbar = { showSnackbar(it) }
+                )
+            } else if (activeSubScreen == SubScreen.REVIEWS_STORAGE) {
+                val collectedJson = remember(userProfile, posts, friends, reviews, settings) {
+                    viewModel.buildCollectedUserDataJson()
+                }
+                ReviewsAndStorageScreen(
+                    userProfile = userProfile,
+                    postsCount = posts.count { it.isUserPost },
+                    friendsCount = friendsCount,
+                    reviews = reviews,
+                    collectedJson = collectedJson,
+                    lastExportPath = lastExportPath,
+                    lastExportTimestamp = lastExportTimestamp,
+                    onSubmitReview = { rating, comment ->
+                        viewModel.submitReview(rating, comment)
+                    },
+                    onUpdateReviewStatus = { reviewId, status ->
+                        viewModel.updateReviewStatus(reviewId, status)
+                    },
+                    onTogglePinReview = { reviewId ->
+                        viewModel.togglePinReview(reviewId)
+                    },
+                    onDeleteReview = { reviewId ->
+                        viewModel.deleteReview(reviewId)
+                    },
+                    onExportUserData = { viewModel.exportCollectedUserData() },
+                    onShareJsonText = { json -> onShareText(json) },
+                    onCopyText = { text -> onCopyText(text) },
+                    onOpenExternalUrl = { url -> onOpenUrl(url) },
+                    onShowSnackbar = { showSnackbar(it) },
+                    onBack = { activeSubScreen = null }
                 )
             } else if (activeSubScreen == SubScreen.AI_STUDIO) {
                 AiStudioScreen(
@@ -367,6 +415,8 @@ fun MainAppContent(
                                 friendsCount = friendsCount,
                                 pendingFriendRequestCount = pendingFriendRequestCount,
                                 onOpenFriends = { activeSubScreen = SubScreen.FRIENDS },
+                                onOpenReviewsAndStorage = { activeSubScreen = SubScreen.REVIEWS_STORAGE },
+                                onOpenEditIdentity = { showEditIdentityDialog = true },
                                 onOpenQrCode = { showQrDialog = true },
                                 onOpenActivityCenter = { showActivityCenter = true },
                                 onOpenSettings = { activeSubScreen = SubScreen.SETTINGS },
@@ -432,5 +482,18 @@ fun MainAppContent(
 
     if (showActivityCenter) {
         ActivityCenterSheet(onDismiss = { showActivityCenter = false })
+    }
+
+    if (!userProfile.isProfileCreated || showEditIdentityDialog) {
+        CreateIdentityDialog(
+            currentProfile = userProfile,
+            isEditingExisting = userProfile.isProfileCreated,
+            onDismiss = { showEditIdentityDialog = false },
+            onSaveIdentity = { name, userId ->
+                viewModel.createOrUpdateIdentity(name, userId)
+                showEditIdentityDialog = false
+                showSnackbar(strings.identity.identitySavedSnackbar)
+            }
+        )
     }
 }

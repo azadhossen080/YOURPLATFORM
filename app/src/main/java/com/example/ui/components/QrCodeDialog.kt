@@ -119,7 +119,7 @@ fun QrCodeDialog(
                     style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
                 )
                 Text(
-                    text = userProfile.handle,
+                    text = "${userProfile.handle.ifBlank { "@${userProfile.displayUserId}" }} • ${strings.identity.userIdPrefix} ${userProfile.displayUserId}",
                     style = MaterialTheme.typography.bodySmall.copy(
                         color = MaterialTheme.colorScheme.primary,
                         fontWeight = FontWeight.SemiBold

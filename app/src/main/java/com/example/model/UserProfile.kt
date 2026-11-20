@@ -1,12 +1,25 @@
 package com.example.model
 
 data class UserProfile(
-    val name: String = "আজাদ হোসেন",
-    val handle: String = "@azadhossen",
-    val bio: String = "YOURPLATFORM কন্টেন্ট ক্রিয়েটর 🚀",
-    val followersCount: String = "১.২K",
+    val name: String = "Guest User",
+    val userId: String = "",
+    val handle: String = "",
+    val bio: String = "",
+    val followersCount: String = "0",
+    val isProfileCreated: Boolean = false,
+    val createdAtTimestamp: Long = 0L,
     val coverColorHex: Long = 0xFF3F51B5,
     val coverImageUri: String? = null,
     val avatarColorHex: Long = 0xFF5352ED,
     val avatarImageUri: String? = null
-)
+) {
+    val displayInitial: String
+        get() = name.trim().firstOrNull()?.uppercaseChar()?.toString() ?: "U"
+
+    val displayUserId: String
+        get() = when {
+            userId.isNotBlank() -> userId
+            handle.isNotBlank() -> handle.removePrefix("@")
+            else -> "pending_id"
+        }
+}

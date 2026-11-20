@@ -26,6 +26,7 @@ import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.RateReview
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -76,6 +77,7 @@ fun SettingsScreen(
     userPosts: List<PostModel>,
     onUpdateSettings: (AppSettings) -> Unit,
     onDeletePost: (String) -> Unit,
+    onOpenReviewsAndStorage: () -> Unit = {},
     onBack: () -> Unit,
     onShowSnackbar: (String) -> Unit,
     modifier: Modifier = Modifier
@@ -216,6 +218,41 @@ fun SettingsScreen(
                     )
                     Text(
                         text = strings.managePostsSubtitle,
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                        )
+                    )
+                }
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.ArrowForwardIos,
+                    contentDescription = null,
+                    modifier = Modifier.size(16.dp),
+                    tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
+                )
+            }
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onOpenReviewsAndStorage() }
+                    .padding(horizontal = 16.dp, vertical = 12.dp)
+                    .testTag("settings_reviews_storage_row"),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = Icons.Default.RateReview,
+                    contentDescription = null,
+                    tint = BrandPrimary,
+                    modifier = Modifier.size(24.dp)
+                )
+                Spacer(modifier = Modifier.width(16.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = strings.reviewsStorage.reviewsAndStorageMenu,
+                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium)
+                    )
+                    Text(
+                        text = strings.reviewsStorage.reviewsAndStorageSubtitle,
                         style = MaterialTheme.typography.bodySmall.copy(
                             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                         )

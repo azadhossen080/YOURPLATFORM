@@ -47,6 +47,7 @@ import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.PlayCircleFilled
 import androidx.compose.material.icons.filled.QrCode
+import androidx.compose.material.icons.filled.RateReview
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -116,6 +117,8 @@ fun ProfileScreen(
     friendsCount: Int,
     pendingFriendRequestCount: Int,
     onOpenFriends: () -> Unit,
+    onOpenReviewsAndStorage: () -> Unit,
+    onOpenEditIdentity: () -> Unit,
     onOpenQrCode: () -> Unit,
     onOpenActivityCenter: () -> Unit,
     onOpenSettings: () -> Unit,
@@ -263,6 +266,15 @@ fun ProfileScreen(
                         }
                     )
                     DropdownMenuItem(
+                        text = { Text(strings.reviewsStorage.reviewsAndStorageMenu) },
+                        leadingIcon = { Icon(Icons.Default.RateReview, contentDescription = null, tint = BrandPrimary) },
+                        onClick = {
+                            menuExpanded = false
+                            onOpenReviewsAndStorage()
+                        },
+                        modifier = Modifier.testTag("profile_reviews_storage_menu_item")
+                    )
+                    DropdownMenuItem(
                         text = { Text(strings.settingsMenu) },
                         leadingIcon = { Icon(Icons.Default.Settings, contentDescription = null, tint = BrandPrimary) },
                         onClick = {
@@ -364,7 +376,7 @@ fun ProfileScreen(
                         )
                     } else {
                         Text(
-                            text = userProfile.name.take(1),
+                            text = userProfile.displayInitial,
                             color = Color.White,
                             fontWeight = FontWeight.Bold,
                             fontSize = 32.sp
@@ -404,18 +416,45 @@ fun ProfileScreen(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Column {
-                Text(
-                    text = userProfile.name,
-                    style = MaterialTheme.typography.titleMedium.copy(
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 18.sp
+            Column(modifier = Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = userProfile.name,
+                        style = MaterialTheme.typography.titleMedium.copy(
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 18.sp
+                        )
                     )
-                )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(BrandPrimary.copy(alpha = 0.1f))
+                            .clickable { onOpenEditIdentity() }
+                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                            .testTag("edit_identity_button")
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.Edit,
+                                contentDescription = strings.identity.editIdentityBtn,
+                                tint = BrandPrimary,
+                                modifier = Modifier.size(11.dp)
+                            )
+                            Spacer(modifier = Modifier.width(3.dp))
+                            Text(
+                                text = strings.identity.editIdentityBtn,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = BrandPrimary
+                            )
+                        }
+                    }
+                }
                 Text(
-                    text = userProfile.handle,
+                    text = "${userProfile.handle.ifBlank { "@${userProfile.displayUserId}" }} • ${strings.identity.userIdPrefix} ${userProfile.displayUserId}",
                     style = MaterialTheme.typography.bodySmall.copy(
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f),
                         fontSize = 12.sp
                     )
                 )
@@ -521,7 +560,7 @@ fun ProfileScreen(
             }
         }
 
-        // Quick Friends & Friend Requests Action Bar
+        // Quick Friends & Reviews/Storage Action Bar
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -548,8 +587,32 @@ fun ProfileScreen(
                         strings.friendsAndRequestsBtn(pendingFriendRequestCount)
                     else
                         strings.friendsListBtn(friendsCount),
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1
+                )
+            }
+
+            Button(
+                onClick = onOpenReviewsAndStorage,
+                colors = ButtonDefaults.buttonColors(containerColor = BrandAccent),
+                shape = RoundedCornerShape(10.dp),
+                modifier = Modifier
+                    .weight(1f)
+                    .height(38.dp)
+                    .testTag("profile_open_reviews_storage_button")
+            ) {
+                Icon(
+                    imageVector = Icons.Default.RateReview,
+                    contentDescription = null,
+                    modifier = Modifier.size(16.dp)
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    text = strings.reviewsStorage.reviewsAndStorageTitle,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1
                 )
             }
         }

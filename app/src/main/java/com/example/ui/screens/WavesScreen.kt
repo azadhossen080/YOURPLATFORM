@@ -78,9 +78,9 @@ fun WavesScreen(
             ReelItem(
                 id = "1",
                 title = "Waves Video #1",
-                author = "@azadhossen",
+                author = "@yourplatform",
                 caption = "YOURPLATFORM এ প্রথম রিলস ভিডিও শেয়ার করলাম! কেমন লাগলো জানাবেন 🌊✨ #waves #viral",
-                song = "Original Audio - Azad Hossen",
+                song = "Original Audio - YOURPLATFORM Studio",
                 likes = 142,
                 comments = 28,
                 gradient = listOf(Color(0xFF1E1E2C), Color(0xFF5352ED), Color(0xFF2C1E4A))

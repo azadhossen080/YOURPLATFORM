@@ -231,7 +231,68 @@ data class AppStrings(
     val qrScanSubtitle: String,
     val shareBtn: String,
     val sharePlatformChooser: String,
-    val activityCenterTitle: String
+    val activityCenterTitle: String,
+
+    // Grouped sub-modules to keep AppStrings constructor well under JVM parameter limit
+    val identity: IdentityStrings,
+    val reviewsStorage: ReviewsStorageStrings
+)
+
+data class IdentityStrings(
+    val createIdentityTitle: String,
+    val createIdentitySubtitle: String,
+    val editIdentityTitle: String,
+    val userNameLabel: String,
+    val userNamePlaceholder: String,
+    val userIdLabel: String,
+    val userIdPlaceholder: String,
+    val autoGenerateIdBtn: String,
+    val createAccountBtn: String,
+    val identityRequiredError: String,
+    val identitySavedSnackbar: String,
+    val initialFollowersBadge: String,
+    val editIdentityBtn: String,
+    val userIdPrefix: String
+)
+
+data class ReviewsStorageStrings(
+    val reviewsAndStorageTitle: String,
+    val reviewsAndStorageMenu: String,
+    val reviewsAndStorageSubtitle: String,
+    val storageSummaryTitle: String,
+    val storageLinkLabel: String,
+    val storageNoticeText: String,
+    val collectExportJsonBtn: String,
+    val shareBackupDataBtn: String,
+    val copyJsonBtn: String,
+    val openStorageLinkBtn: String,
+    val exportSuccessSnackbar: (String) -> String,
+    val exportFailedSnackbar: String,
+    val jsonPreviewTitle: String,
+    val lastExportedLabel: String,
+    val notExportedYet: String,
+    val writeReviewTitle: String,
+    val ratingLabel: String,
+    val reviewInputPlaceholder: String,
+    val submitReviewBtn: String,
+    val reviewEmptyError: String,
+    val reviewSubmittedSnackbar: String,
+    val allReviewsTitle: String,
+    val totalReviewsLabel: (Int) -> String,
+    val avgRatingLabel: (String) -> String,
+    val filterAll: String,
+    val filterApproved: String,
+    val filterPending: String,
+    val filterHidden: String,
+    val statusApproved: String,
+    val statusPending: String,
+    val statusHidden: String,
+    val pinnedBadge: String,
+    val approveBtn: String,
+    val hideBtn: String,
+    val pinBtn: String,
+    val unpinBtn: String,
+    val noReviewsYet: String
 )
 
 val LocalAppStrings = staticCompositionLocalOf { BengaliStrings }

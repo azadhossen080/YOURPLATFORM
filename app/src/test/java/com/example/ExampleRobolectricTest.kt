@@ -137,4 +137,67 @@ class ExampleRobolectricTest {
         assertTrue(createdPost.mediaUri!!.contains("/files/media/"))
         assertEquals(0, viewModel.selectedTab.value)
     }
+
+    @Test
+    fun `default followers is zero and create user name and user id persists`() {
+        val app = ApplicationProvider.getApplicationContext<Application>()
+        app.getSharedPreferences("yourplatform_prefs", Context.MODE_PRIVATE).edit().clear().commit()
+
+        val viewModel = PlatformViewModel(app)
+        assertEquals("0", viewModel.userProfile.value.followersCount)
+        assertFalse(viewModel.userProfile.value.isProfileCreated)
+
+        viewModel.createOrUpdateIdentity("Nabil Hasan", "nabil_99")
+        assertEquals("Nabil Hasan", viewModel.userProfile.value.name)
+        assertEquals("nabil_99", viewModel.userProfile.value.userId)
+        assertEquals("@nabil_99", viewModel.userProfile.value.handle)
+        assertEquals("0", viewModel.userProfile.value.followersCount)
+        assertTrue(viewModel.userProfile.value.isProfileCreated)
+
+        val reloaded = PlatformViewModel(app)
+        assertEquals("Nabil Hasan", reloaded.userProfile.value.name)
+        assertEquals("nabil_99", reloaded.userProfile.value.userId)
+        assertEquals("0", reloaded.userProfile.value.followersCount)
+        assertTrue(reloaded.userProfile.value.isProfileCreated)
+    }
+
+    @Test
+    fun `reviews control and collected user data export json work`() {
+        val app = ApplicationProvider.getApplicationContext<Application>()
+        app.getSharedPreferences("yourplatform_prefs", Context.MODE_PRIVATE).edit().clear().commit()
+
+        val viewModel = PlatformViewModel(app)
+        viewModel.createOrUpdateIdentity("Sara Khan", "sara_id_01")
+        viewModel.submitReview(rating = 5, comment = "Clean interface and fast posting!")
+
+        assertEquals(1, viewModel.reviews.value.size)
+        val rev = viewModel.reviews.value.first()
+        assertEquals("Sara Khan", rev.userName)
+        assertEquals("sara_id_01", rev.userId)
+        assertEquals(5, rev.rating)
+
+        viewModel.togglePinReview(rev.id)
+        assertTrue(viewModel.reviews.value.first().isPinned)
+
+        viewModel.updateReviewStatus(rev.id, com.example.model.ReviewStatus.HIDDEN)
+        assertEquals(com.example.model.ReviewStatus.HIDDEN, viewModel.reviews.value.first().status)
+
+        val exportedFile = viewModel.exportCollectedUserData()
+        assertNotNull(exportedFile)
+        assertTrue(exportedFile!!.exists())
+        val content = exportedFile.readText()
+        val parsed = org.json.JSONObject(content)
+        assertEquals(
+            "https://1024terabox.com/s/1c-9JfS24NJeK7eox0Slajw",
+            parsed.getString("externalStorageReferenceUrl")
+        )
+        val parsedProfile = parsed.getJSONObject("userProfile")
+        assertEquals("sara_id_01", parsedProfile.getString("userId"))
+        assertEquals("Sara Khan", parsedProfile.getString("userName"))
+        assertEquals("0", parsedProfile.getString("followersCount"))
+        assertTrue(content.contains("Clean interface and fast posting!"))
+
+        viewModel.deleteReview(rev.id)
+        assertTrue(viewModel.reviews.value.isEmpty())
+    }
 }

@@ -10,6 +10,8 @@ import com.example.model.FriendStatus
 import com.example.model.FriendUser
 import com.example.model.NotificationModel
 import com.example.model.PostModel
+import com.example.model.ReviewModel
+import com.example.model.ReviewStatus
 import com.example.model.UserProfile
 import com.example.util.AppStringsRegistry
 import com.example.util.MediaProcessor
@@ -19,6 +21,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import java.io.File
 import java.util.UUID
 
 enum class UploadStage {
@@ -74,6 +77,15 @@ class PlatformViewModel(application: Application) : AndroidViewModel(application
     private val _friends = MutableStateFlow<List<FriendUser>>(emptyList())
     val friends: StateFlow<List<FriendUser>> = _friends.asStateFlow()
 
+    private val _reviews = MutableStateFlow<List<ReviewModel>>(emptyList())
+    val reviews: StateFlow<List<ReviewModel>> = _reviews.asStateFlow()
+
+    private val _lastExportPath = MutableStateFlow<String?>(null)
+    val lastExportPath: StateFlow<String?> = _lastExportPath.asStateFlow()
+
+    private val _lastExportTimestamp = MutableStateFlow<Long?>(null)
+    val lastExportTimestamp: StateFlow<Long?> = _lastExportTimestamp.asStateFlow()
+
     private val _uploadState = MutableStateFlow<PostUploadState>(PostUploadState.Idle)
     val uploadState: StateFlow<PostUploadState> = _uploadState.asStateFlow()
 
@@ -85,6 +97,9 @@ class PlatformViewModel(application: Application) : AndroidViewModel(application
         _settings.value = repository.loadSettings()
         _notifications.value = repository.loadNotifications()
         _friends.value = repository.loadFriends()
+        _reviews.value = repository.loadReviews()
+        _lastExportPath.value = repository.getLastExportPath()
+        _lastExportTimestamp.value = repository.getLastExportTime()
     }
 
     private fun currentStrings() = AppStringsRegistry.forCode(_settings.value.selectedLanguageCode)
@@ -409,5 +424,82 @@ class PlatformViewModel(application: Application) : AndroidViewModel(application
         val updated = _friends.value.filter { it.id != userId }
         _friends.value = updated
         repository.saveFriends(updated)
+    }
+
+    fun createOrUpdateIdentity(userName: String, userId: String) {
+        val cleanName = userName.trim().ifBlank { "Guest User" }
+        val cleanId = userId.trim().removePrefix("@").replace("\\s+".toRegex(), "_")
+        val current = _userProfile.value
+        val updated = current.copy(
+            name = cleanName,
+            userId = cleanId,
+            handle = if (cleanId.isNotBlank()) "@$cleanId" else "",
+            followersCount = current.followersCount.ifBlank { "0" },
+            isProfileCreated = true,
+            createdAtTimestamp = if (current.createdAtTimestamp > 0L) current.createdAtTimestamp else System.currentTimeMillis()
+        )
+        _userProfile.value = updated
+        repository.saveProfile(updated)
+    }
+
+    fun submitReview(rating: Int, comment: String) {
+        if (comment.isBlank()) return
+        val profile = _userProfile.value
+        val newReview = ReviewModel(
+            id = UUID.randomUUID().toString(),
+            userId = profile.displayUserId,
+            userName = profile.name,
+            rating = rating.coerceIn(1, 5),
+            comment = comment.trim(),
+            timestamp = System.currentTimeMillis(),
+            timeAgo = currentStrings().justNow,
+            status = ReviewStatus.APPROVED,
+            isPinned = false
+        )
+        val updated = listOf(newReview) + _reviews.value
+        _reviews.value = updated
+        repository.saveReviews(updated)
+    }
+
+    fun updateReviewStatus(reviewId: String, status: ReviewStatus) {
+        val updated = _reviews.value.map { r ->
+            if (r.id == reviewId) r.copy(status = status) else r
+        }
+        _reviews.value = updated
+        repository.saveReviews(updated)
+    }
+
+    fun togglePinReview(reviewId: String) {
+        val updated = _reviews.value.map { r ->
+            if (r.id == reviewId) r.copy(isPinned = !r.isPinned) else r
+        }
+        _reviews.value = updated
+        repository.saveReviews(updated)
+    }
+
+    fun deleteReview(reviewId: String) {
+        val updated = _reviews.value.filter { it.id != reviewId }
+        _reviews.value = updated
+        repository.saveReviews(updated)
+    }
+
+    fun buildCollectedUserDataJson(): String {
+        return repository.buildCollectedUserDataJson(
+            profile = _userProfile.value,
+            posts = _posts.value,
+            friends = _friends.value,
+            reviews = _reviews.value,
+            settings = _settings.value
+        )
+    }
+
+    fun exportCollectedUserData(): File? {
+        val json = buildCollectedUserDataJson()
+        val file = repository.exportCollectedUserDataToFile(json, _userProfile.value.displayUserId)
+        if (file != null) {
+            _lastExportPath.value = file.absolutePath
+            _lastExportTimestamp.value = System.currentTimeMillis()
+        }
+        return file
     }
 }
