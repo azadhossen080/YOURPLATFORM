@@ -200,4 +200,49 @@ class ExampleRobolectricTest {
         viewModel.deleteReview(rev.id)
         assertTrue(viewModel.reviews.value.isEmpty())
     }
+
+    @Test
+    fun `identity email phone registration and Firestore payload parity check`() {
+        val app = ApplicationProvider.getApplicationContext<Application>()
+        app.getSharedPreferences("yourplatform_prefs", Context.MODE_PRIVATE).edit().clear().commit()
+
+        val viewModel = PlatformViewModel(app)
+        viewModel.createOrUpdateIdentity(
+            userName = "Ayesha Rahman",
+            userId = "ayesha_bd",
+            email = "ayesha@example.com",
+            phoneNumber = "+8801712345678"
+        )
+
+        val profile = viewModel.userProfile.value
+        assertEquals("Ayesha Rahman", profile.name)
+        assertEquals("ayesha_bd", profile.userId)
+        assertEquals("ayesha@example.com", profile.email)
+        assertEquals("+8801712345678", profile.phoneNumber)
+        assertEquals("0", profile.followersCount)
+        assertTrue(profile.isProfileCreated)
+
+        val publicMap = com.example.data.FirestorePayloadMapper.toPublicProfileCreateMap("uid_123", profile)
+        assertFalse(publicMap.containsKey("id"))
+        assertFalse(publicMap.containsKey("email"))
+        assertFalse(publicMap.containsKey("phoneNumber"))
+        assertFalse(publicMap.containsKey("coverImageUri"))
+        assertEquals("uid_123", publicMap["uid"])
+        assertEquals("ayesha_bd", publicMap["customUserId"])
+        assertEquals(true, publicMap["profileCreated"])
+
+        val privateMap = com.example.data.FirestorePayloadMapper.toPrivateInfoCreateMap(
+            uid = "uid_123",
+            email = profile.email,
+            phoneNumber = profile.phoneNumber
+        )
+        assertFalse(privateMap.containsKey("id"))
+        assertEquals("ayesha@example.com", privateMap["email"])
+        assertEquals("+8801712345678", privateMap["phoneNumber"])
+
+        viewModel.setSelectedTab(4)
+        viewModel.prepareForSignOut()
+        assertEquals(0, viewModel.selectedTab.value)
+        assertTrue(viewModel.cloudSyncState.value is com.example.viewmodel.FirestoreSyncState.Idle)
+    }
 }

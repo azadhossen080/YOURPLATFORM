@@ -4,6 +4,7 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.data.AiRepository
+import com.example.data.FirestoreRepository
 import com.example.data.LocalRepository
 import com.example.model.AppSettings
 import com.example.model.FriendStatus
@@ -15,11 +16,16 @@ import com.example.model.ReviewStatus
 import com.example.model.UserProfile
 import com.example.util.AppStringsRegistry
 import com.example.util.MediaProcessor
+import com.google.firebase.Firebase
+import com.google.firebase.auth.auth
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 import java.io.File
 import java.util.UUID
@@ -45,6 +51,13 @@ sealed interface PostUploadState {
     data class Failed(val message: String) : PostUploadState
 }
 
+sealed interface FirestoreSyncState {
+    data object Idle : FirestoreSyncState
+    data object Syncing : FirestoreSyncState
+    data object Synced : FirestoreSyncState
+    data class Error(val message: String) : FirestoreSyncState
+}
+
 private data class PendingUploadRequest(
     val text: String,
     val type: String,
@@ -54,6 +67,7 @@ private data class PendingUploadRequest(
 
 class PlatformViewModel(application: Application) : AndroidViewModel(application) {
     private val repository = LocalRepository(application.applicationContext)
+    private val firestoreRepo: FirestoreRepository? = FirestoreRepository.createOrNull(application.applicationContext)
     val aiRepository = AiRepository()
 
     private val _posts = MutableStateFlow<List<PostModel>>(emptyList())
@@ -89,7 +103,13 @@ class PlatformViewModel(application: Application) : AndroidViewModel(application
     private val _uploadState = MutableStateFlow<PostUploadState>(PostUploadState.Idle)
     val uploadState: StateFlow<PostUploadState> = _uploadState.asStateFlow()
 
+    private val _cloudSyncState = MutableStateFlow<FirestoreSyncState>(FirestoreSyncState.Idle)
+    val cloudSyncState: StateFlow<FirestoreSyncState> = _cloudSyncState.asStateFlow()
+
     private var lastUploadRequest: PendingUploadRequest? = null
+    private var activeUid: String? = null
+    private val firestoreListenerJobs = mutableListOf<Job>()
+    private var seededInitialDefaultsForUid: String? = null
 
     init {
         _posts.value = repository.loadPosts()
@@ -103,6 +123,157 @@ class PlatformViewModel(application: Application) : AndroidViewModel(application
     }
 
     private fun currentStrings() = AppStringsRegistry.forCode(_settings.value.selectedLanguageCode)
+
+    private fun signedInUid(): String? {
+        return try {
+            Firebase.auth.currentUser?.uid
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    fun bindAuthenticatedUser(
+        uid: String,
+        googleDisplayName: String?,
+        googleEmail: String?
+    ) {
+        if (activeUid == uid && firestoreListenerJobs.isNotEmpty()) return
+        cancelFirestoreListeners()
+        activeUid = uid
+
+        val repo = firestoreRepo ?: return
+        _cloudSyncState.value = FirestoreSyncState.Syncing
+
+        val localCached = _userProfile.value
+        if (localCached.authUid != uid) {
+            _userProfile.value = UserProfile(
+                name = googleDisplayName?.takeIf { it.isNotBlank() } ?: "Guest User",
+                email = googleEmail ?: "",
+                authUid = uid,
+                followersCount = "0",
+                isProfileCreated = false
+            )
+        }
+
+        // 1. Observe public profile + private PII doc
+        firestoreListenerJobs += viewModelScope.launch {
+            combine(
+                repo.observePublicProfile(uid),
+                repo.observePrivateInfo(uid)
+            ) { pubDoc, privDoc ->
+                Pair(pubDoc, privDoc)
+            }.catch { error ->
+                if (error !is CancellationException && signedInUid() == uid) {
+                    _cloudSyncState.value = FirestoreSyncState.Error(error.localizedMessage ?: "Sync error")
+                }
+            }.collect { (pubDoc, privDoc) ->
+                if (pubDoc != null) {
+                    val mapped = UserProfile(
+                        name = pubDoc.name,
+                        userId = pubDoc.customUserId,
+                        handle = pubDoc.handle,
+                        bio = pubDoc.bio,
+                        email = privDoc?.email ?: googleEmail.orEmpty(),
+                        phoneNumber = privDoc?.phoneNumber ?: "",
+                        authUid = uid,
+                        followersCount = pubDoc.followersCount.ifBlank { "0" },
+                        isProfileCreated = pubDoc.profileCreated,
+                        createdAtTimestamp = pubDoc.createdAt?.toDate()?.time ?: System.currentTimeMillis(),
+                        coverColorHex = pubDoc.coverColorHex,
+                        coverImageUri = pubDoc.coverImageUri,
+                        avatarColorHex = pubDoc.avatarColorHex,
+                        avatarImageUri = pubDoc.avatarImageUri
+                    )
+                    _userProfile.value = mapped
+                    repository.saveProfile(mapped)
+                    _cloudSyncState.value = FirestoreSyncState.Synced
+                } else {
+                    val pending = _userProfile.value.copy(
+                        name = _userProfile.value.name.takeIf { it != "Guest User" }
+                            ?: googleDisplayName.orEmpty().ifBlank { "Guest User" },
+                        email = privDoc?.email?.ifBlank { googleEmail.orEmpty() } ?: googleEmail.orEmpty(),
+                        phoneNumber = privDoc?.phoneNumber ?: _userProfile.value.phoneNumber,
+                        authUid = uid,
+                        isProfileCreated = false
+                    )
+                    _userProfile.value = pending
+                    _cloudSyncState.value = FirestoreSyncState.Synced
+                }
+            }
+        }
+
+        // 2. Observe user posts
+        firestoreListenerJobs += viewModelScope.launch {
+            repo.observePosts(uid, currentStrings().justNow)
+                .catch { error ->
+                    if (error !is CancellationException && signedInUid() == uid) {
+                        _cloudSyncState.value = FirestoreSyncState.Error(error.localizedMessage ?: "Posts sync error")
+                    }
+                }
+                .collect { remotePosts ->
+                    if (remotePosts.isEmpty() && seededInitialDefaultsForUid != uid) {
+                        seededInitialDefaultsForUid = uid
+                        val seedPost = repository.loadPosts().firstOrNull { !it.isUserPost }
+                        if (seedPost != null) {
+                            repo.seedDefaultPostIfEmpty(seedPost)
+                        }
+                    } else if (remotePosts.isNotEmpty()) {
+                        _posts.value = remotePosts
+                        repository.savePosts(remotePosts)
+                    }
+                }
+        }
+
+        // 3. Observe user friends
+        firestoreListenerJobs += viewModelScope.launch {
+            repo.observeFriends(uid)
+                .catch { error ->
+                    if (error !is CancellationException && signedInUid() == uid) {
+                        _cloudSyncState.value = FirestoreSyncState.Error(error.localizedMessage ?: "Friends sync error")
+                    }
+                }
+                .collect { remoteFriends ->
+                    if (remoteFriends.isEmpty()) {
+                        repo.seedDefaultFriendsIfEmpty(repository.loadFriends())
+                    } else {
+                        _friends.value = remoteFriends
+                        repository.saveFriends(remoteFriends)
+                    }
+                }
+        }
+
+        // 4. Observe reviews
+        firestoreListenerJobs += viewModelScope.launch {
+            repo.observeReviews(uid, currentStrings().justNow)
+                .catch { error ->
+                    if (error !is CancellationException && signedInUid() == uid) {
+                        _cloudSyncState.value = FirestoreSyncState.Error(error.localizedMessage ?: "Reviews sync error")
+                    }
+                }
+                .collect { remoteReviews ->
+                    _reviews.value = remoteReviews
+                    repository.saveReviews(remoteReviews)
+                }
+        }
+    }
+
+    fun prepareForSignOut() {
+        cancelFirestoreListeners()
+        activeUid = null
+        seededInitialDefaultsForUid = null
+        _cloudSyncState.value = FirestoreSyncState.Idle
+        _selectedTab.value = 0
+    }
+
+    private fun cancelFirestoreListeners() {
+        firestoreListenerJobs.forEach { it.cancel() }
+        firestoreListenerJobs.clear()
+    }
+
+    override fun onCleared() {
+        cancelFirestoreListeners()
+        super.onCleared()
+    }
 
     fun setSelectedTab(tab: Int) {
         _selectedTab.value = tab
@@ -176,7 +347,6 @@ class PlatformViewModel(application: Application) : AndroidViewModel(application
                     delay(200)
                 }
 
-                // Uploading phase with smooth visible progress
                 for (step in listOf(0.72f, 0.85f, 0.94f)) {
                     _uploadState.value = PostUploadState.Uploading(
                         postText = finalCaption,
@@ -214,6 +384,10 @@ class PlatformViewModel(application: Application) : AndroidViewModel(application
                 val updated = listOf(newPost) + _posts.value
                 _posts.value = updated
                 repository.savePosts(updated)
+
+                if (signedInUid() != null) {
+                    firestoreRepo?.savePost(newPost)
+                }
 
                 _uploadState.value = PostUploadState.Success(newPost.id)
                 _selectedTab.value = 0
@@ -263,41 +437,72 @@ class PlatformViewModel(application: Application) : AndroidViewModel(application
         _posts.value = updated
         repository.savePosts(updated)
         _selectedTab.value = 0
+        if (signedInUid() != null) {
+            viewModelScope.launch { firestoreRepo?.savePost(newPost) }
+        }
     }
 
     fun deletePost(id: String) {
         val updated = _posts.value.filter { it.id != id }
         _posts.value = updated
         repository.savePosts(updated)
+        if (signedInUid() != null) {
+            viewModelScope.launch { firestoreRepo?.deletePost(id) }
+        }
     }
 
     fun toggleLike(id: String) {
+        var targetPost: PostModel? = null
         val updated = _posts.value.map { post ->
             if (post.id == id) {
                 val newLiked = !post.isLiked
                 val newCount = if (newLiked) post.likeCount + 1 else (post.likeCount - 1).coerceAtLeast(0)
-                post.copy(isLiked = newLiked, likeCount = newCount)
+                post.copy(isLiked = newLiked, likeCount = newCount).also { targetPost = it }
             } else post
         }
         _posts.value = updated
         repository.savePosts(updated)
+        val synced = targetPost
+        if (synced != null && signedInUid() != null) {
+            viewModelScope.launch {
+                firestoreRepo?.updatePostEngagement(
+                    postId = synced.id,
+                    likeCount = synced.likeCount,
+                    isLiked = synced.isLiked,
+                    comments = synced.comments
+                )
+            }
+        }
     }
 
     fun addComment(id: String, comment: String) {
         if (comment.isBlank()) return
+        var targetPost: PostModel? = null
         val updated = _posts.value.map { post ->
             if (post.id == id) {
-                post.copy(comments = post.comments + comment.trim())
+                post.copy(comments = post.comments + comment.trim()).also { targetPost = it }
             } else post
         }
         _posts.value = updated
         repository.savePosts(updated)
+        val synced = targetPost
+        if (synced != null && signedInUid() != null) {
+            viewModelScope.launch {
+                firestoreRepo?.updatePostEngagement(
+                    postId = synced.id,
+                    likeCount = synced.likeCount,
+                    isLiked = synced.isLiked,
+                    comments = synced.comments
+                )
+            }
+        }
     }
 
     fun updateCoverColor(colorHex: Long) {
         val updated = _userProfile.value.copy(coverColorHex = colorHex, coverImageUri = null)
         _userProfile.value = updated
         repository.saveProfile(updated)
+        syncProfileToFirestore(updated)
     }
 
     fun updateCoverUri(uri: String?) {
@@ -305,6 +510,7 @@ class PlatformViewModel(application: Application) : AndroidViewModel(application
             val updated = _userProfile.value.copy(coverImageUri = null)
             _userProfile.value = updated
             repository.saveProfile(updated)
+            syncProfileToFirestore(updated)
             return
         }
         viewModelScope.launch {
@@ -312,6 +518,7 @@ class PlatformViewModel(application: Application) : AndroidViewModel(application
             val updated = _userProfile.value.copy(coverImageUri = savedUri)
             _userProfile.value = updated
             repository.saveProfile(updated)
+            syncProfileToFirestore(updated)
         }
     }
 
@@ -319,6 +526,7 @@ class PlatformViewModel(application: Application) : AndroidViewModel(application
         val updated = _userProfile.value.copy(avatarColorHex = colorHex, avatarImageUri = null)
         _userProfile.value = updated
         repository.saveProfile(updated)
+        syncProfileToFirestore(updated)
     }
 
     fun updateAvatarUri(uri: String?) {
@@ -326,6 +534,7 @@ class PlatformViewModel(application: Application) : AndroidViewModel(application
             val updated = _userProfile.value.copy(avatarImageUri = null)
             _userProfile.value = updated
             repository.saveProfile(updated)
+            syncProfileToFirestore(updated)
             return
         }
         viewModelScope.launch {
@@ -333,6 +542,7 @@ class PlatformViewModel(application: Application) : AndroidViewModel(application
             val updated = _userProfile.value.copy(avatarImageUri = savedUri)
             _userProfile.value = updated
             repository.saveProfile(updated)
+            syncProfileToFirestore(updated)
         }
     }
 
@@ -340,6 +550,7 @@ class PlatformViewModel(application: Application) : AndroidViewModel(application
         val updated = _userProfile.value.copy(bio = bio)
         _userProfile.value = updated
         repository.saveProfile(updated)
+        syncProfileToFirestore(updated)
     }
 
     fun updateSettings(newSettings: AppSettings) {
@@ -363,6 +574,11 @@ class PlatformViewModel(application: Application) : AndroidViewModel(application
         }
         _friends.value = updated
         repository.saveFriends(updated)
+        if (signedInUid() != null) {
+            viewModelScope.launch {
+                firestoreRepo?.updateFriendStatus(userId, FriendStatus.FRIEND, "")
+            }
+        }
 
         if (acceptedName.isNotEmpty()) {
             val strings = currentStrings()
@@ -387,6 +603,11 @@ class PlatformViewModel(application: Application) : AndroidViewModel(application
         }
         _friends.value = updated
         repository.saveFriends(updated)
+        if (signedInUid() != null) {
+            viewModelScope.launch {
+                firestoreRepo?.updateFriendStatus(userId, FriendStatus.SUGGESTION, "")
+            }
+        }
     }
 
     fun sendFriendRequest(userId: String) {
@@ -398,6 +619,11 @@ class PlatformViewModel(application: Application) : AndroidViewModel(application
         }
         _friends.value = updated
         repository.saveFriends(updated)
+        if (signedInUid() != null) {
+            viewModelScope.launch {
+                firestoreRepo?.updateFriendStatus(userId, FriendStatus.OUTGOING_REQUEST, now)
+            }
+        }
     }
 
     fun cancelFriendRequest(userId: String) {
@@ -408,6 +634,11 @@ class PlatformViewModel(application: Application) : AndroidViewModel(application
         }
         _friends.value = updated
         repository.saveFriends(updated)
+        if (signedInUid() != null) {
+            viewModelScope.launch {
+                firestoreRepo?.updateFriendStatus(userId, FriendStatus.SUGGESTION, "")
+            }
+        }
     }
 
     fun unfriend(userId: String) {
@@ -418,28 +649,61 @@ class PlatformViewModel(application: Application) : AndroidViewModel(application
         }
         _friends.value = updated
         repository.saveFriends(updated)
+        if (signedInUid() != null) {
+            viewModelScope.launch {
+                firestoreRepo?.updateFriendStatus(userId, FriendStatus.SUGGESTION, "")
+            }
+        }
     }
 
     fun removeSuggestion(userId: String) {
         val updated = _friends.value.filter { it.id != userId }
         _friends.value = updated
         repository.saveFriends(updated)
+        if (signedInUid() != null) {
+            viewModelScope.launch {
+                firestoreRepo?.deleteFriend(userId)
+            }
+        }
     }
 
-    fun createOrUpdateIdentity(userName: String, userId: String) {
+    fun createOrUpdateIdentity(
+        userName: String,
+        userId: String,
+        email: String = _userProfile.value.email,
+        phoneNumber: String = _userProfile.value.phoneNumber
+    ) {
         val cleanName = userName.trim().ifBlank { "Guest User" }
         val cleanId = userId.trim().removePrefix("@").replace("\\s+".toRegex(), "_")
         val current = _userProfile.value
+        val uid = signedInUid() ?: current.authUid
         val updated = current.copy(
             name = cleanName,
             userId = cleanId,
             handle = if (cleanId.isNotBlank()) "@$cleanId" else "",
+            email = email.trim(),
+            phoneNumber = phoneNumber.trim(),
+            authUid = uid,
             followersCount = current.followersCount.ifBlank { "0" },
             isProfileCreated = true,
             createdAtTimestamp = if (current.createdAtTimestamp > 0L) current.createdAtTimestamp else System.currentTimeMillis()
         )
         _userProfile.value = updated
         repository.saveProfile(updated)
+        if (signedInUid() != null) {
+            viewModelScope.launch {
+                firestoreRepo?.upsertPublicProfile(updated)
+                firestoreRepo?.upsertPrivateInfo(updated.email, updated.phoneNumber)
+            }
+        }
+    }
+
+    private fun syncProfileToFirestore(profile: UserProfile) {
+        if (signedInUid() != null) {
+            viewModelScope.launch {
+                firestoreRepo?.upsertPublicProfile(profile)
+            }
+        }
     }
 
     fun submitReview(rating: Int, comment: String) {
@@ -459,28 +723,48 @@ class PlatformViewModel(application: Application) : AndroidViewModel(application
         val updated = listOf(newReview) + _reviews.value
         _reviews.value = updated
         repository.saveReviews(updated)
+        if (signedInUid() != null) {
+            viewModelScope.launch { firestoreRepo?.addReview(newReview) }
+        }
     }
 
     fun updateReviewStatus(reviewId: String, status: ReviewStatus) {
+        var target: ReviewModel? = null
         val updated = _reviews.value.map { r ->
-            if (r.id == reviewId) r.copy(status = status) else r
+            if (r.id == reviewId) r.copy(status = status).also { target = it } else r
         }
         _reviews.value = updated
         repository.saveReviews(updated)
+        val synced = target
+        if (synced != null && signedInUid() != null) {
+            viewModelScope.launch {
+                firestoreRepo?.updateReviewControl(synced.id, synced.status, synced.isPinned)
+            }
+        }
     }
 
     fun togglePinReview(reviewId: String) {
+        var target: ReviewModel? = null
         val updated = _reviews.value.map { r ->
-            if (r.id == reviewId) r.copy(isPinned = !r.isPinned) else r
+            if (r.id == reviewId) r.copy(isPinned = !r.isPinned).also { target = it } else r
         }
         _reviews.value = updated
         repository.saveReviews(updated)
+        val synced = target
+        if (synced != null && signedInUid() != null) {
+            viewModelScope.launch {
+                firestoreRepo?.updateReviewControl(synced.id, synced.status, synced.isPinned)
+            }
+        }
     }
 
     fun deleteReview(reviewId: String) {
         val updated = _reviews.value.filter { it.id != reviewId }
         _reviews.value = updated
         repository.saveReviews(updated)
+        if (signedInUid() != null) {
+            viewModelScope.launch { firestoreRepo?.deleteReview(reviewId) }
+        }
     }
 
     fun buildCollectedUserDataJson(): String {

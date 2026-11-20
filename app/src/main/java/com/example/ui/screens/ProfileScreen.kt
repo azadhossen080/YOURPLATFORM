@@ -40,8 +40,8 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Landscape
+import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.LocalActivity
-import androidx.compose.material.icons.filled.Login
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PhotoLibrary
@@ -122,6 +122,7 @@ fun ProfileScreen(
     onOpenQrCode: () -> Unit,
     onOpenActivityCenter: () -> Unit,
     onOpenSettings: () -> Unit,
+    onLogOut: () -> Unit = {},
     onShowSnackbar: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -134,6 +135,7 @@ fun ProfileScreen(
     var isEditingCover by remember { mutableStateOf(false) }
     var showPhotoPickerSheet by remember { mutableStateOf(false) }
     var showAiBioDialog by remember { mutableStateOf(false) }
+    var showLogOutConfirm by remember { mutableStateOf(false) }
     var isGeneratingBio by remember { mutableStateOf(false) }
     val coroutineScope = rememberCoroutineScope()
 
@@ -285,12 +287,13 @@ fun ProfileScreen(
                     )
                     HorizontalDivider()
                     DropdownMenuItem(
-                        text = { Text(strings.signInLogoutMenu, color = BrandAccent) },
-                        leadingIcon = { Icon(Icons.Default.Login, contentDescription = null, tint = BrandAccent) },
+                        text = { Text(strings.auth.logOutBtn, color = BrandAccent, fontWeight = FontWeight.SemiBold) },
+                        leadingIcon = { Icon(Icons.AutoMirrored.Filled.Logout, contentDescription = null, tint = BrandAccent) },
                         onClick = {
                             menuExpanded = false
-                            onShowSnackbar(strings.localModeSnackbar)
-                        }
+                            showLogOutConfirm = true
+                        },
+                        modifier = Modifier.testTag("profile_logout_menu_item")
                     )
                 }
             }
@@ -977,6 +980,31 @@ fun ProfileScreen(
             },
             dismissButton = {
                 TextButton(onClick = { showAiBioDialog = false }) {
+                    Text(strings.cancel)
+                }
+            }
+        )
+    }
+
+    if (showLogOutConfirm) {
+        AlertDialog(
+            onDismissRequest = { showLogOutConfirm = false },
+            title = { Text(strings.auth.logOutConfirmTitle, fontWeight = FontWeight.Bold) },
+            text = { Text(strings.auth.logOutConfirmMessage) },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showLogOutConfirm = false
+                        onLogOut()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
+                    modifier = Modifier.testTag("profile_confirm_logout_button")
+                ) {
+                    Text(strings.auth.logOutBtn)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showLogOutConfirm = false }) {
                     Text(strings.cancel)
                 }
             }

@@ -24,18 +24,23 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.unit.LayoutDirection
+import androidx.credentials.CredentialManager
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.data.LocalRepository
 import com.example.model.FriendStatus
 import com.example.model.PostModel
 import com.example.ui.components.ActivityCenterSheet
@@ -45,6 +50,8 @@ import com.example.ui.components.CommentBottomSheet
 import com.example.ui.components.CreateIdentityDialog
 import com.example.ui.components.QrCodeDialog
 import com.example.ui.screens.AiStudioScreen
+import com.example.ui.screens.AuthScreen
+import com.example.ui.screens.CompleteRegistrationScreen
 import com.example.ui.screens.CreatePostScreen
 import com.example.ui.screens.FriendsScreen
 import com.example.ui.screens.HomeScreen
@@ -57,9 +64,15 @@ import com.example.ui.screens.SplashScreen
 import com.example.ui.screens.WavesScreen
 import com.example.ui.theme.MyApplicationTheme
 import com.example.util.AppStringsRegistry
+import com.example.util.GoogleAuthHelper
 import com.example.util.LocalAppStrings
 import com.example.util.configureAppCheck
 import com.example.viewmodel.PlatformViewModel
+import com.google.firebase.Firebase
+import com.google.firebase.FirebaseApp
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.auth.FirebaseUser
+import com.google.firebase.auth.auth
 import kotlinx.coroutines.launch
 import java.util.Locale
 
@@ -78,54 +91,147 @@ class MainActivity : ComponentActivity() {
         configureAppCheck(this, intent)
         enableEdgeToEdge()
         setContent {
-            val viewModel: PlatformViewModel = viewModel()
-            val settings by viewModel.settings.collectAsState()
-            val localizedStrings = remember(settings.selectedLanguageCode) {
-                AppStringsRegistry.forCode(settings.selectedLanguageCode)
+            val context = LocalContext.current
+            var showSplash by remember { mutableStateOf(true) }
+            val firebaseReady = remember { FirebaseApp.getApps(context).isNotEmpty() }
+            var currentUser by remember {
+                mutableStateOf<FirebaseUser?>(
+                    if (firebaseReady) try { Firebase.auth.currentUser } catch (_: Exception) { null } else null
+                )
             }
-            val layoutDir = remember(settings.selectedLanguageCode) {
-                if (AppStringsRegistry.isRtl(settings.selectedLanguageCode)) {
-                    LayoutDirection.Rtl
-                } else {
-                    LayoutDirection.Ltr
+
+            if (firebaseReady) {
+                DisposableEffect(Unit) {
+                    val auth = Firebase.auth
+                    val listener = FirebaseAuth.AuthStateListener { firebaseAuth ->
+                        currentUser = firebaseAuth.currentUser
+                    }
+                    auth.addAuthStateListener(listener)
+                    onDispose {
+                        auth.removeAuthStateListener(listener)
+                    }
                 }
             }
 
-            LaunchedEffect(settings.selectedLanguageCode) {
-                val locale = Locale.forLanguageTag(settings.selectedLanguageCode.replace("_", "-"))
-                Locale.setDefault(locale)
+            if (showSplash) {
+                val initialSettings = remember { LocalRepository(context).loadSettings() }
+                val splashStrings = remember(initialSettings.selectedLanguageCode) {
+                    AppStringsRegistry.forCode(initialSettings.selectedLanguageCode)
+                }
+                CompositionLocalProvider(LocalAppStrings provides splashStrings) {
+                    MyApplicationTheme(darkTheme = initialSettings.isDarkMode) {
+                        SplashScreen(onSplashFinished = { showSplash = false })
+                    }
+                }
+                return@setContent
             }
 
-            CompositionLocalProvider(
-                LocalAppStrings provides localizedStrings,
-                LocalLayoutDirection provides layoutDir
-            ) {
-                MyApplicationTheme(darkTheme = settings.isDarkMode) {
-                    val currentStrings = LocalAppStrings.current
-                    MainAppContent(
-                        viewModel = viewModel,
-                        onShareText = { text ->
-                            val sendIntent = Intent().apply {
-                                action = Intent.ACTION_SEND
-                                putExtra(Intent.EXTRA_TEXT, text)
-                                type = "text/plain"
+            val signedInUser = currentUser
+            if (signedInUser == null) {
+                val preAuthSettings = remember { LocalRepository(context).loadSettings() }
+                val preAuthStrings = remember(preAuthSettings.selectedLanguageCode) {
+                    AppStringsRegistry.forCode(preAuthSettings.selectedLanguageCode)
+                }
+                val preAuthLayoutDir = remember(preAuthSettings.selectedLanguageCode) {
+                    if (AppStringsRegistry.isRtl(preAuthSettings.selectedLanguageCode)) {
+                        LayoutDirection.Rtl
+                    } else {
+                        LayoutDirection.Ltr
+                    }
+                }
+                CompositionLocalProvider(
+                    LocalAppStrings provides preAuthStrings,
+                    LocalLayoutDirection provides preAuthLayoutDir
+                ) {
+                    MyApplicationTheme(darkTheme = preAuthSettings.isDarkMode) {
+                        AuthScreen(
+                            onAuthSuccess = {
+                                currentUser = try {
+                                    Firebase.auth.currentUser
+                                } catch (_: Exception) {
+                                    null
+                                }
                             }
-                            val shareIntent = Intent.createChooser(sendIntent, currentStrings.sharePlatformChooser)
-                            startActivity(shareIntent)
-                        },
-                        onCopyText = { text ->
-                            val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                            val clip = ClipData.newPlainText("Post Link", text)
-                            clipboard.setPrimaryClip(clip)
-                        },
-                        onOpenUrl = { url ->
-                            try {
-                                val browserIntent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
-                                startActivity(browserIntent)
-                            } catch (_: Exception) {
-                            }
+                        )
+                    }
+                }
+            } else {
+                val uid = signedInUser.uid
+                key(uid) {
+                    val viewModel: PlatformViewModel = viewModel(key = uid)
+                    LaunchedEffect(uid) {
+                        viewModel.bindAuthenticatedUser(
+                            uid = uid,
+                            googleDisplayName = signedInUser.displayName,
+                            googleEmail = signedInUser.email
+                        )
+                    }
+
+                    val settings by viewModel.settings.collectAsState()
+                    val localizedStrings = remember(settings.selectedLanguageCode) {
+                        AppStringsRegistry.forCode(settings.selectedLanguageCode)
+                    }
+                    val layoutDir = remember(settings.selectedLanguageCode) {
+                        if (AppStringsRegistry.isRtl(settings.selectedLanguageCode)) {
+                            LayoutDirection.Rtl
+                        } else {
+                            LayoutDirection.Ltr
                         }
-                    )
+                    }
+
+                    LaunchedEffect(settings.selectedLanguageCode) {
+                        val locale = Locale.forLanguageTag(settings.selectedLanguageCode.replace("_", "-"))
+                        Locale.setDefault(locale)
+                    }
+
+                    val credentialManager = remember(context) { CredentialManager.create(context) }
+                    val authScope = rememberCoroutineScope()
+
+                    val performLogOut: () -> Unit = {
+                        GoogleAuthHelper.signOut(
+                            credentialManager = credentialManager,
+                            scope = authScope,
+                            onBeforeAuthSignOut = { viewModel.prepareForSignOut() },
+                            onSignOutComplete = { currentUser = null }
+                        )
+                    }
+
+                    CompositionLocalProvider(
+                        LocalAppStrings provides localizedStrings,
+                        LocalLayoutDirection provides layoutDir
+                    ) {
+                        MyApplicationTheme(darkTheme = settings.isDarkMode) {
+                            val currentStrings = LocalAppStrings.current
+                            MainAppContent(
+                                viewModel = viewModel,
+                                signedInEmail = signedInUser.email.orEmpty(),
+                                signedInDisplayName = signedInUser.displayName.orEmpty(),
+                                signedInUid = uid,
+                                onLogOut = performLogOut,
+                                onShareText = { text ->
+                                    val sendIntent = Intent().apply {
+                                        action = Intent.ACTION_SEND
+                                        putExtra(Intent.EXTRA_TEXT, text)
+                                        type = "text/plain"
+                                    }
+                                    val shareIntent = Intent.createChooser(sendIntent, currentStrings.sharePlatformChooser)
+                                    startActivity(shareIntent)
+                                },
+                                onCopyText = { text ->
+                                    val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                                    val clip = ClipData.newPlainText("Post Link", text)
+                                    clipboard.setPrimaryClip(clip)
+                                },
+                                onOpenUrl = { url ->
+                                    try {
+                                        val browserIntent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+                                        startActivity(browserIntent)
+                                    } catch (_: Exception) {
+                                    }
+                                }
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -136,12 +242,15 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun MainAppContent(
     viewModel: PlatformViewModel,
+    signedInEmail: String,
+    signedInDisplayName: String,
+    signedInUid: String,
+    onLogOut: () -> Unit,
     onShareText: (String) -> Unit,
     onCopyText: (String) -> Unit,
     onOpenUrl: (String) -> Unit
 ) {
     val strings = LocalAppStrings.current
-    var showSplash by remember { mutableStateOf(true) }
     var activeSubScreen by remember { mutableStateOf<SubScreen?>(null) }
     var activeCommentPost by remember { mutableStateOf<PostModel?>(null) }
     var showQrDialog by remember { mutableStateOf(false) }
@@ -173,8 +282,17 @@ fun MainAppContent(
         }
     }
 
-    if (showSplash) {
-        SplashScreen(onSplashFinished = { showSplash = false })
+    if (!userProfile.isProfileCreated) {
+        CompleteRegistrationScreen(
+            currentProfile = userProfile,
+            googleEmail = signedInEmail,
+            googleName = signedInDisplayName,
+            onSaveAccount = { name, userId, email, phone ->
+                viewModel.createOrUpdateIdentity(name, userId, email, phone)
+                showSnackbar(strings.identity.identitySavedSnackbar)
+            },
+            onLogOut = onLogOut
+        )
         return
     }
 
@@ -218,9 +336,12 @@ fun MainAppContent(
                 SettingsScreen(
                     settings = settings,
                     userPosts = posts.filter { it.isUserPost },
+                    signedInEmail = signedInEmail.ifBlank { userProfile.email },
+                    signedInUid = signedInUid,
                     onUpdateSettings = { viewModel.updateSettings(it) },
                     onDeletePost = { viewModel.deletePost(it) },
                     onOpenReviewsAndStorage = { activeSubScreen = SubScreen.REVIEWS_STORAGE },
+                    onLogOut = onLogOut,
                     onBack = { activeSubScreen = null },
                     onShowSnackbar = { showSnackbar(it) }
                 )
@@ -420,6 +541,7 @@ fun MainAppContent(
                                 onOpenQrCode = { showQrDialog = true },
                                 onOpenActivityCenter = { showActivityCenter = true },
                                 onOpenSettings = { activeSubScreen = SubScreen.SETTINGS },
+                                onLogOut = onLogOut,
                                 onShowSnackbar = { showSnackbar(it) }
                             )
                         }
@@ -484,13 +606,13 @@ fun MainAppContent(
         ActivityCenterSheet(onDismiss = { showActivityCenter = false })
     }
 
-    if (!userProfile.isProfileCreated || showEditIdentityDialog) {
+    if (showEditIdentityDialog) {
         CreateIdentityDialog(
             currentProfile = userProfile,
-            isEditingExisting = userProfile.isProfileCreated,
+            isEditingExisting = true,
             onDismiss = { showEditIdentityDialog = false },
-            onSaveIdentity = { name, userId ->
-                viewModel.createOrUpdateIdentity(name, userId)
+            onSaveIdentity = { name, userId, email, phone ->
+                viewModel.createOrUpdateIdentity(name, userId, email, phone)
                 showEditIdentityDialog = false
                 showSnackbar(strings.identity.identitySavedSnackbar)
             }

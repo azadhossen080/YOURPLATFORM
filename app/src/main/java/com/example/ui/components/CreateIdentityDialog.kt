@@ -57,7 +57,7 @@ fun CreateIdentityDialog(
     currentProfile: UserProfile,
     isEditingExisting: Boolean,
     onDismiss: () -> Unit,
-    onSaveIdentity: (userName: String, userId: String) -> Unit
+    onSaveIdentity: (userName: String, userId: String, email: String, phoneNumber: String) -> Unit
 ) {
     val strings = LocalAppStrings.current
     var userName by remember(currentProfile.name, isEditingExisting) {
@@ -67,6 +67,12 @@ fun CreateIdentityDialog(
         mutableStateOf(
             if (isEditingExisting || currentProfile.isProfileCreated) currentProfile.userId else ""
         )
+    }
+    var email by remember(currentProfile.email, isEditingExisting) {
+        mutableStateOf(currentProfile.email)
+    }
+    var phoneNumber by remember(currentProfile.phoneNumber, isEditingExisting) {
+        mutableStateOf(currentProfile.phoneNumber)
     }
     var validationError by remember { mutableStateOf<String?>(null) }
 
@@ -198,6 +204,29 @@ fun CreateIdentityDialog(
                     }
                 }
 
+                OutlinedTextField(
+                    value = email,
+                    onValueChange = { email = it },
+                    label = { Text(strings.auth.emailLabel) },
+                    singleLine = true,
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("identity_email_input")
+                )
+
+                OutlinedTextField(
+                    value = phoneNumber,
+                    onValueChange = { phoneNumber = it },
+                    label = { Text(strings.auth.phoneNumberLabel) },
+                    placeholder = { Text(strings.auth.phonePlaceholder) },
+                    singleLine = true,
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("identity_phone_input")
+                )
+
                 if (validationError != null) {
                     Text(
                         text = validationError!!,
@@ -216,7 +245,7 @@ fun CreateIdentityDialog(
                     if (cleanName.isBlank() || cleanId.isBlank()) {
                         validationError = strings.identity.identityRequiredError
                     } else {
-                        onSaveIdentity(cleanName, cleanId)
+                        onSaveIdentity(cleanName, cleanId, email.trim(), phoneNumber.trim())
                     }
                 },
                 colors = ButtonDefaults.buttonColors(containerColor = BrandPrimary),

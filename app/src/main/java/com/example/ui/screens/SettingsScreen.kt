@@ -19,9 +19,12 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForwardIos
+import androidx.compose.material.icons.automirrored.filled.Logout
+import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Article
 import androidx.compose.material.icons.filled.BrightnessMedium
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.CloudDone
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Language
@@ -29,6 +32,10 @@ import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.RateReview
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -75,9 +82,12 @@ data class LanguageOption(
 fun SettingsScreen(
     settings: AppSettings,
     userPosts: List<PostModel>,
+    signedInEmail: String = "",
+    signedInUid: String = "",
     onUpdateSettings: (AppSettings) -> Unit,
     onDeletePost: (String) -> Unit,
     onOpenReviewsAndStorage: () -> Unit = {},
+    onLogOut: () -> Unit = {},
     onBack: () -> Unit,
     onShowSnackbar: (String) -> Unit,
     modifier: Modifier = Modifier
@@ -85,6 +95,7 @@ fun SettingsScreen(
     val strings = LocalAppStrings.current
     var showLanguageDialog by remember { mutableStateOf(false) }
     var showManagePostsSheet by remember { mutableStateOf(false) }
+    var showLogOutConfirm by remember { mutableStateOf(false) }
 
     val languages = remember {
         listOf(
@@ -416,7 +427,129 @@ fun SettingsScreen(
                     colors = SwitchDefaults.colors(checkedThumbColor = BrandPrimary, checkedTrackColor = BrandPrimary.copy(alpha = 0.5f))
                 )
             }
+
+            HorizontalDivider(
+                thickness = 1.dp,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f),
+                modifier = Modifier.padding(vertical = 8.dp)
+            )
+
+            // Section 5: Account & Cloud Session (Firestore + Log Out)
+            Text(
+                text = strings.auth.accountSessionSection,
+                style = MaterialTheme.typography.titleSmall.copy(
+                    fontWeight = FontWeight.Bold,
+                    color = BrandPrimary
+                ),
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
+            )
+
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 6.dp),
+                shape = RoundedCornerShape(14.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
+                )
+            ) {
+                Column(modifier = Modifier.padding(14.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.AccountCircle,
+                            contentDescription = null,
+                            tint = BrandPrimary,
+                            modifier = Modifier.size(28.dp)
+                        )
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = strings.auth.signedInWithGoogleLabel,
+                                style = MaterialTheme.typography.labelMedium.copy(
+                                    color = BrandPrimary,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            )
+                            Text(
+                                text = signedInEmail.ifBlank { "Google Account" },
+                                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold)
+                            )
+                            if (signedInUid.isNotBlank()) {
+                                Text(
+                                    text = "${strings.auth.firebaseUidLabel} ${signedInUid.take(16)}...",
+                                    style = MaterialTheme.typography.bodySmall.copy(
+                                        fontSize = 11.sp,
+                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                                    )
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.CloudDone,
+                            contentDescription = null,
+                            tint = Color(0xFF009688),
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = strings.auth.firestoreSyncedLabel,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = Color(0xFF009688)
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Button(
+                        onClick = { showLogOutConfirm = true },
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("settings_logout_button")
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.Logout,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(strings.auth.logOutBtn, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
         }
+    }
+
+    if (showLogOutConfirm) {
+        AlertDialog(
+            onDismissRequest = { showLogOutConfirm = false },
+            title = { Text(strings.auth.logOutConfirmTitle, fontWeight = FontWeight.Bold) },
+            text = { Text(strings.auth.logOutConfirmMessage) },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showLogOutConfirm = false
+                        onLogOut()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
+                    modifier = Modifier.testTag("settings_confirm_logout_button")
+                ) {
+                    Text(strings.auth.logOutBtn)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showLogOutConfirm = false }) {
+                    Text(strings.cancel)
+                }
+            }
+        )
     }
 
     // Language Selection Dialog

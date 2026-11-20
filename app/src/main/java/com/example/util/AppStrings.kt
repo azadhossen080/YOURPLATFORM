@@ -235,7 +235,39 @@ data class AppStrings(
 
     // Grouped sub-modules to keep AppStrings constructor well under JVM parameter limit
     val identity: IdentityStrings,
-    val reviewsStorage: ReviewsStorageStrings
+    val reviewsStorage: ReviewsStorageStrings,
+    val auth: AuthStrings
+)
+
+data class AuthStrings(
+    val loginTab: String,
+    val signUpTab: String,
+    val welcomeTitle: String,
+    val authSubtitle: String,
+    val continueWithGoogle: String,
+    val signingInLabel: String,
+    val providerDisclosureTitle: String,
+    val providerDisclosureBody: String,
+    val cloudSyncActiveBadge: String,
+    val completeProfileTitle: String,
+    val completeProfileSubtitle: String,
+    val nameLabel: String,
+    val userIdLabel: String,
+    val emailLabel: String,
+    val phoneNumberLabel: String,
+    val phonePlaceholder: String,
+    val verifiedViaGoogleBadge: String,
+    val appCheckProtectedBadge: String,
+    val saveAndContinueBtn: String,
+    val registrationErrorEmpty: String,
+    val accountSessionSection: String,
+    val signedInWithGoogleLabel: String,
+    val firebaseUidLabel: String,
+    val firestoreSyncedLabel: String,
+    val logOutBtn: String,
+    val logOutConfirmTitle: String,
+    val logOutConfirmMessage: String,
+    val loggedOutSnackbar: String
 )
 
 data class IdentityStrings(

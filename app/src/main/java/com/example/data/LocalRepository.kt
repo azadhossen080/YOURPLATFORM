@@ -121,6 +121,9 @@ class LocalRepository(private val context: Context) {
                 userId = rawUserId,
                 handle = if (rawHandle.isNotBlank()) rawHandle else if (rawUserId.isNotBlank()) "@$rawUserId" else "",
                 bio = obj.optString("bio", ""),
+                email = obj.optString("email", ""),
+                phoneNumber = obj.optString("phoneNumber", ""),
+                authUid = obj.optString("authUid", ""),
                 followersCount = normalizedFollowers,
                 isProfileCreated = obj.optBoolean("isProfileCreated", rawUserId.isNotBlank() && rawName != "Guest User"),
                 createdAtTimestamp = obj.optLong("createdAtTimestamp", 0L),
@@ -140,6 +143,9 @@ class LocalRepository(private val context: Context) {
         obj.put("userId", profile.userId)
         obj.put("handle", profile.handle)
         obj.put("bio", profile.bio)
+        obj.put("email", profile.email)
+        obj.put("phoneNumber", profile.phoneNumber)
+        obj.put("authUid", profile.authUid)
         obj.put("followersCount", profile.followersCount)
         obj.put("isProfileCreated", profile.isProfileCreated)
         obj.put("createdAtTimestamp", profile.createdAtTimestamp)
@@ -287,9 +293,12 @@ class LocalRepository(private val context: Context) {
         root.put("collectedAtIso", isoFormatter.format(Date(now)))
 
         val profileObj = JSONObject().apply {
+            put("authUid", profile.authUid)
             put("userName", profile.name)
             put("userId", profile.displayUserId)
             put("handle", profile.handle)
+            put("email", profile.email)
+            put("phoneNumber", profile.phoneNumber)
             put("bio", profile.bio)
             put("followersCount", profile.followersCount)
             put("isProfileCreated", profile.isProfileCreated)
