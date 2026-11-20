@@ -54,6 +54,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.ui.theme.BrandAccent
 import com.example.ui.theme.BrandPrimary
+import com.example.util.LocalAppStrings
 
 data class ReelItem(
     val id: String,
@@ -71,6 +72,7 @@ fun WavesScreen(
     onShareReel: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val strings = LocalAppStrings.current
     val reels = remember {
         listOf(
             ReelItem(
@@ -141,7 +143,6 @@ fun WavesScreen(
                     isPlayingMap[reel.id] = !isPlaying
                 }
         ) {
-            // Centered Video Content Representation
             Column(
                 modifier = Modifier.align(Alignment.Center),
                 horizontalAlignment = Alignment.CenterHorizontally
@@ -161,7 +162,7 @@ fun WavesScreen(
                     )
                 )
                 Text(
-                    text = if (isPlaying) "ট্যাপ করে পজ করুন" else "পজ করা হয়েছে (ট্যাপ করে চালু করুন)",
+                    text = if (isPlaying) strings.tapToPause else strings.pausedTapToPlay,
                     style = MaterialTheme.typography.bodySmall.copy(
                         color = Color.White.copy(alpha = 0.7f),
                         fontSize = 11.sp
@@ -169,7 +170,6 @@ fun WavesScreen(
                 )
             }
 
-            // Right side vertical action bar (Like, Comment, Share, Sound disc)
             Column(
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
@@ -177,12 +177,9 @@ fun WavesScreen(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                // Like Button
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     IconButton(
-                        onClick = {
-                            likedMap[reel.id] = !isLiked
-                        },
+                        onClick = { likedMap[reel.id] = !isLiked },
                         modifier = Modifier
                             .size(44.dp)
                             .background(Color.Black.copy(alpha = 0.35f), CircleShape)
@@ -203,7 +200,6 @@ fun WavesScreen(
                     )
                 }
 
-                // Comment Button
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     IconButton(
                         onClick = { /* View comments */ },
@@ -226,7 +222,6 @@ fun WavesScreen(
                     )
                 }
 
-                // Share Button
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     IconButton(
                         onClick = { onShareReel(reel.caption) },
@@ -236,13 +231,13 @@ fun WavesScreen(
                     ) {
                         Icon(
                             imageVector = Icons.Outlined.Share,
-                            contentDescription = "Share",
+                            contentDescription = strings.shareLabel,
                             tint = Color.White,
                             modifier = Modifier.size(22.dp)
                         )
                     }
                     Text(
-                        text = "শেয়ার",
+                        text = strings.shareLabel,
                         color = Color.White,
                         fontSize = 11.sp
                     )

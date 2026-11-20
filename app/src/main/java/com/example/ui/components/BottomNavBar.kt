@@ -29,6 +29,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import com.example.ui.theme.BrandPrimary
+import com.example.util.LocalAppStrings
 
 @Composable
 fun BottomNavBar(
@@ -36,6 +37,8 @@ fun BottomNavBar(
     onTabSelected: (Int) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val strings = LocalAppStrings.current
+
     Box(
         modifier = modifier
             .fillMaxWidth()
@@ -54,7 +57,6 @@ fun BottomNavBar(
             horizontalArrangement = Arrangement.SpaceAround,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Home
             IconButton(
                 onClick = { onTabSelected(0) },
                 modifier = Modifier
@@ -63,13 +65,12 @@ fun BottomNavBar(
             ) {
                 Icon(
                     imageVector = Icons.Rounded.Home,
-                    contentDescription = "Home",
+                    contentDescription = strings.navHome,
                     tint = if (selectedTab == 0) BrandPrimary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f),
                     modifier = Modifier.size(28.dp)
                 )
             }
 
-            // Waves / Reels
             IconButton(
                 onClick = { onTabSelected(1) },
                 modifier = Modifier
@@ -78,16 +79,15 @@ fun BottomNavBar(
             ) {
                 Icon(
                     imageVector = Icons.Rounded.VideoLibrary,
-                    contentDescription = "Waves",
+                    contentDescription = strings.navWaves,
                     tint = if (selectedTab == 1) BrandPrimary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f),
                     modifier = Modifier.size(26.dp)
                 )
             }
 
-            // Add (+) elevated button
             Box(
                 modifier = Modifier
-                    .size(46.dp)
+                    .size(48.dp)
                     .shadow(elevation = 6.dp, shape = CircleShape, spotColor = BrandPrimary)
                     .clip(CircleShape)
                     .background(BrandPrimary)
@@ -97,13 +97,12 @@ fun BottomNavBar(
             ) {
                 Icon(
                     imageVector = Icons.Rounded.Add,
-                    contentDescription = "Create Post",
+                    contentDescription = strings.navCreatePost,
                     tint = Color.White,
                     modifier = Modifier.size(28.dp)
                 )
             }
 
-            // Search
             IconButton(
                 onClick = { onTabSelected(3) },
                 modifier = Modifier
@@ -112,13 +111,12 @@ fun BottomNavBar(
             ) {
                 Icon(
                     imageVector = Icons.Rounded.Search,
-                    contentDescription = "Search",
+                    contentDescription = strings.navSearch,
                     tint = if (selectedTab == 3) BrandPrimary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f),
                     modifier = Modifier.size(28.dp)
                 )
             }
 
-            // Profile
             IconButton(
                 onClick = { onTabSelected(4) },
                 modifier = Modifier
@@ -127,7 +125,7 @@ fun BottomNavBar(
             ) {
                 Icon(
                     imageVector = Icons.Rounded.Person,
-                    contentDescription = "Profile",
+                    contentDescription = strings.navProfile,
                     tint = if (selectedTab == 4) BrandPrimary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f),
                     modifier = Modifier.size(28.dp)
                 )

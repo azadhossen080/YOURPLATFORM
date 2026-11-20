@@ -40,6 +40,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.model.NotificationModel
 import com.example.ui.theme.BrandPrimary
+import com.example.util.LocalAppStrings
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -49,15 +50,17 @@ fun NotificationsScreen(
     onMarkAllRead: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val strings = LocalAppStrings.current
+
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("নোটিফিকেশনস", fontWeight = FontWeight.Bold) },
+                title = { Text(strings.notificationsTitle, fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Back"
+                            contentDescription = strings.back
                         )
                     }
                 },
@@ -87,7 +90,7 @@ fun NotificationsScreen(
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = "কোনো নোটিফিকেশন নেই।",
+                    text = strings.noNotifications,
                     style = MaterialTheme.typography.bodyMedium.copy(
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                     )

@@ -39,6 +39,7 @@ import com.example.R
 import com.example.model.UserProfile
 import com.example.ui.theme.BrandAccent
 import com.example.ui.theme.BrandPrimary
+import com.example.util.LocalAppStrings
 
 @Composable
 fun AppHeader(
@@ -51,6 +52,7 @@ fun AppHeader(
     onProfileClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val strings = LocalAppStrings.current
     Row(
         modifier = modifier.padding(horizontal = 12.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
@@ -105,7 +107,7 @@ fun AppHeader(
                 ) {
                     Icon(
                         imageVector = Icons.Default.AutoAwesome,
-                        contentDescription = "AI Studio",
+                        contentDescription = strings.aiStudioDesc,
                         tint = Color.White,
                         modifier = Modifier.size(16.dp)
                     )
@@ -136,7 +138,7 @@ fun AppHeader(
                 ) {
                     Icon(
                         imageVector = Icons.Outlined.Group,
-                        contentDescription = "Friends & Requests",
+                        contentDescription = strings.friendsRequestsDesc,
                         tint = BrandPrimary,
                         modifier = Modifier.size(25.dp)
                     )
@@ -167,7 +169,7 @@ fun AppHeader(
                 ) {
                     Icon(
                         imageVector = Icons.Outlined.Notifications,
-                        contentDescription = "Notifications",
+                        contentDescription = strings.notificationsDesc,
                         tint = BrandPrimary,
                         modifier = Modifier.size(26.dp)
                     )

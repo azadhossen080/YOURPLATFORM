@@ -40,15 +40,21 @@ import coil.compose.AsyncImage
 import com.example.model.PostModel
 import com.example.model.UserProfile
 import com.example.ui.components.PostCardItem
+import com.example.ui.components.UploadProgressCard
 import com.example.ui.theme.BrandAccent
 import com.example.ui.theme.BrandPrimary
+import com.example.util.LocalAppStrings
+import com.example.viewmodel.PostUploadState
 
 @Composable
 fun HomeScreen(
     posts: List<PostModel>,
     userProfile: UserProfile,
+    uploadState: PostUploadState,
     friendsCount: Int,
     pendingRequestCount: Int,
+    onRetryUpload: () -> Unit,
+    onDismissUpload: () -> Unit,
     onOpenFriends: () -> Unit,
     onOpenCreatePost: () -> Unit,
     onLikePost: (String) -> Unit,
@@ -57,13 +63,27 @@ fun HomeScreen(
     onDeletePost: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val strings = LocalAppStrings.current
+
     LazyColumn(
         modifier = modifier
             .fillMaxSize()
             .testTag("home_feed_list"),
         contentPadding = PaddingValues(12.dp)
     ) {
-        // Item 0: Quick create post card
+        // Live post processing & upload status banner
+        if (uploadState !is PostUploadState.Idle) {
+            item {
+                UploadProgressCard(
+                    uploadState = uploadState,
+                    onRetry = onRetryUpload,
+                    onDismiss = onDismissUpload,
+                    modifier = Modifier.padding(bottom = 10.dp)
+                )
+            }
+        }
+
+        // Quick create post card
         item {
             Card(
                 shape = RoundedCornerShape(12.dp),
@@ -91,7 +111,7 @@ fun HomeScreen(
                         if (userProfile.avatarImageUri != null) {
                             AsyncImage(
                                 model = userProfile.avatarImageUri,
-                                contentDescription = "Profile",
+                                contentDescription = strings.navProfile,
                                 modifier = Modifier
                                     .size(38.dp)
                                     .clip(CircleShape),
@@ -110,7 +130,7 @@ fun HomeScreen(
                     Spacer(modifier = Modifier.width(12.dp))
 
                     Text(
-                        text = "নতুন কিছু পোস্ট বা ভিডিও শেয়ার করুন...",
+                        text = strings.quickCreatePrompt,
                         style = MaterialTheme.typography.bodyMedium.copy(
                             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
                             fontSize = 13.sp
@@ -120,7 +140,7 @@ fun HomeScreen(
 
                     Icon(
                         imageVector = Icons.Rounded.VideoCall,
-                        contentDescription = "Create Media",
+                        contentDescription = strings.navCreatePost,
                         tint = BrandPrimary,
                         modifier = Modifier.size(24.dp)
                     )
@@ -128,7 +148,7 @@ fun HomeScreen(
             }
         }
 
-        // Item 1: Quick Friends & Friend Requests Banner
+        // Quick Friends & Friend Requests Banner
         item {
             Card(
                 shape = RoundedCornerShape(12.dp),
@@ -169,7 +189,7 @@ fun HomeScreen(
                         Spacer(modifier = Modifier.width(10.dp))
                         Column {
                             Text(
-                                text = "বন্ধু ও ফ্রেন্ড রিকোয়েস্ট",
+                                text = strings.friendsAndRequestsBanner,
                                 style = MaterialTheme.typography.titleSmall.copy(
                                     fontWeight = FontWeight.Bold,
                                     color = BrandPrimary,
@@ -178,9 +198,9 @@ fun HomeScreen(
                             )
                             Text(
                                 text = if (pendingRequestCount > 0)
-                                    "$pendingRequestCount টি নতুন রিকোয়েস্ট • $friendsCount জন বন্ধু"
+                                    strings.newRequestsCount(pendingRequestCount, friendsCount)
                                 else
-                                    "$friendsCount জন বন্ধু • নতুন বন্ধু খুঁজুন",
+                                    strings.friendsCountFindNew(friendsCount),
                                 style = MaterialTheme.typography.bodySmall.copy(
                                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
                                     fontSize = 11.sp
@@ -198,7 +218,7 @@ fun HomeScreen(
                                     .padding(horizontal = 8.dp, vertical = 3.dp)
                             ) {
                                 Text(
-                                    text = "$pendingRequestCount নতুন",
+                                    text = strings.newBadgeCount(pendingRequestCount),
                                     color = Color.White,
                                     fontSize = 10.sp,
                                     fontWeight = FontWeight.Bold
@@ -208,7 +228,7 @@ fun HomeScreen(
                         }
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowForwardIos,
-                            contentDescription = "Open Friends",
+                            contentDescription = strings.friendsRequestsDesc,
                             tint = BrandPrimary,
                             modifier = Modifier.size(14.dp)
                         )

@@ -51,6 +51,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.model.PostModel
 import com.example.ui.theme.BrandPrimary
+import com.example.util.LocalAppStrings
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -58,9 +59,11 @@ fun CommentBottomSheet(
     post: PostModel,
     onDismiss: () -> Unit,
     onAddComment: (String) -> Unit,
-    aiSuggestions: List<String> = listOf("দারুণ পোস্ট! ❤️", "অনেক ভালো লাগলো 👏", "শুভকামনা রইলো 🌟"),
+    aiSuggestions: List<String> = emptyList(),
     sheetState: SheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 ) {
+    val strings = LocalAppStrings.current
+    val resolvedSuggestions = aiSuggestions.ifEmpty { strings.defaultCommentSuggestions }
     var commentText by remember { mutableStateOf("") }
 
     ModalBottomSheet(
@@ -77,7 +80,7 @@ fun CommentBottomSheet(
                 .padding(bottom = 16.dp)
         ) {
             Text(
-                text = "কমেন্টসমূহ",
+                text = strings.commentsTitle,
                 style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                 modifier = Modifier.padding(vertical = 8.dp)
             )
@@ -87,7 +90,6 @@ fun CommentBottomSheet(
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f)
             )
 
-            // Comments List
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -101,16 +103,14 @@ fun CommentBottomSheet(
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            text = "কোনো কমেন্ট নেই। প্রথম কমেন্ট করুন!",
+                            text = strings.noCommentsYet,
                             style = MaterialTheme.typography.bodyMedium.copy(
                                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                             )
                         )
                     }
                 } else {
-                    LazyColumn(
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
+                    LazyColumn(modifier = Modifier.fillMaxWidth()) {
                         items(post.comments) { comment ->
                             Row(
                                 modifier = Modifier
@@ -148,8 +148,7 @@ fun CommentBottomSheet(
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f)
             )
 
-            // AI Smart Quick Reply Suggestions
-            if (aiSuggestions.isNotEmpty()) {
+            if (resolvedSuggestions.isNotEmpty()) {
                 Spacer(modifier = Modifier.height(8.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(
@@ -160,7 +159,7 @@ fun CommentBottomSheet(
                     )
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
-                        "AI দ্রুত উত্তর সাজেশন:",
+                        strings.aiQuickReplyLabel,
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
@@ -171,11 +170,9 @@ fun CommentBottomSheet(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    aiSuggestions.forEach { suggestion ->
+                    resolvedSuggestions.forEach { suggestion ->
                         AssistChip(
-                            onClick = {
-                                onAddComment(suggestion)
-                            },
+                            onClick = { onAddComment(suggestion) },
                             label = { Text(suggestion, fontSize = 11.sp) },
                             colors = AssistChipDefaults.assistChipColors(
                                 labelColor = BrandPrimary,
@@ -189,7 +186,6 @@ fun CommentBottomSheet(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // Add Comment Input Row
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
@@ -197,7 +193,7 @@ fun CommentBottomSheet(
                 OutlinedTextField(
                     value = commentText,
                     onValueChange = { commentText = it },
-                    placeholder = { Text("আপনার কমেন্ট লিখুন...", fontSize = 13.sp) },
+                    placeholder = { Text(strings.commentPlaceholder, fontSize = 13.sp) },
                     modifier = Modifier
                         .weight(1f)
                         .testTag("comment_input_field"),

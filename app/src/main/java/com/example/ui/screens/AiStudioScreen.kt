@@ -1,6 +1,5 @@
 package com.example.ui.screens
 
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -12,7 +11,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -62,11 +60,13 @@ import androidx.compose.ui.unit.sp
 import com.example.data.AiRepository
 import com.example.ui.theme.BrandAccent
 import com.example.ui.theme.BrandPrimary
+import com.example.util.AppStringsRegistry
+import com.example.util.LocalAppStrings
 import kotlinx.coroutines.launch
 
 data class ChatMessage(
     val id: String,
-    val sender: String, // "user" or "ai"
+    val sender: String,
     var text: String
 )
 
@@ -74,12 +74,16 @@ data class ChatMessage(
 @Composable
 fun AiStudioScreen(
     aiRepository: AiRepository,
+    selectedLanguageCode: String,
     onBack: () -> Unit,
     onUseTextInPost: (String) -> Unit,
     onCopyText: (String) -> Unit,
     onShowSnackbar: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val strings = LocalAppStrings.current
+    val aiLang = AppStringsRegistry.aiLanguageName(selectedLanguageCode)
+
     var inputText by remember { mutableStateOf("") }
     var isGenerating by remember { mutableStateOf(false) }
     val messages = remember {
@@ -87,19 +91,18 @@ fun AiStudioScreen(
             ChatMessage(
                 id = "welcome",
                 sender = "ai",
-                text = "স্বাগতম! আমি YOURPLATFORM AI Assistant 🤖✨\n\nপোস্টের ক্যাপশন, রিলস ভিডিওর স্ক্রিপ্ট, হ্যাশট্যাগ আইডিয়া কিংবা যেকোনো প্রশ্ন—আমাকে জানাতে পারেন!"
+                text = strings.aiWelcomeMessage
             )
         )
     }
+    LaunchedEffect(strings.aiWelcomeMessage) {
+        if (messages.isNotEmpty() && messages[0].id == "welcome") {
+            messages[0] = messages[0].copy(text = strings.aiWelcomeMessage)
+        }
+    }
+
     val listState = rememberLazyListState()
     val coroutineScope = rememberCoroutineScope()
-
-    val quickPrompts = listOf(
-        "🎬 Waves রিলসের জন্য ৩টি ট্রেন্ডিং ভিডিও আইডিয়া",
-        "✍️ ফেসবুক/সোশ্যাল মিডিয়ায় পোস্ট করার জন্য সুন্দর ক্যাপশন",
-        "💡 কীভাবে দ্রুত ফলোয়ার্স বাড়ানো যায়?",
-        "🏷️ জনপ্রিয় বাংলা হ্যাশট্যাগের তালিকা"
-    )
 
     fun sendMessage(userText: String) {
         if (userText.isBlank() || isGenerating) return
@@ -116,19 +119,17 @@ fun AiStudioScreen(
         coroutineScope.launch {
             listState.animateScrollToItem(messages.size - 1)
             try {
-                aiRepository.chatStream(trimmed).collect { chunk ->
+                aiRepository.chatStream(trimmed, languageName = aiLang).collect { chunk ->
                     val index = messages.indexOfFirst { it.id == aiMsgId }
                     if (index != -1) {
                         val current = messages[index]
                         messages[index] = current.copy(text = current.text + chunk)
                     }
                 }
-            } catch (e: Exception) {
+            } catch (_: Exception) {
                 val index = messages.indexOfFirst { it.id == aiMsgId }
                 if (index != -1) {
-                    messages[index] = messages[index].copy(
-                        text = "দুঃখিত, উত্তর তৈরিতে সাময়িক সমস্যা হয়েছে। দয়া করে আবার চেষ্টা করুন।"
-                    )
+                    messages[index] = messages[index].copy(text = strings.aiChatError)
                 }
             } finally {
                 isGenerating = false
@@ -162,8 +163,8 @@ fun AiStudioScreen(
                         }
                         Spacer(modifier = Modifier.width(10.dp))
                         Column {
-                            Text("YOURPLATFORM AI", fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                            Text("Gemini 3.8 Flash দ্বারা চালিত", fontSize = 11.sp, color = Color.White.copy(alpha = 0.8f))
+                            Text(strings.aiStudioTitle, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                            Text(strings.poweredByGemini, fontSize = 11.sp, color = Color.White.copy(alpha = 0.8f))
                         }
                     }
                 },
@@ -171,7 +172,7 @@ fun AiStudioScreen(
                     IconButton(onClick = onBack) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Back",
+                            contentDescription = strings.back,
                             tint = Color.White
                         )
                     }
@@ -192,7 +193,6 @@ fun AiStudioScreen(
                 .fillMaxSize()
                 .padding(innerPadding)
         ) {
-            // Chat messages list
             LazyColumn(
                 state = listState,
                 modifier = Modifier
@@ -253,7 +253,7 @@ fun AiStudioScreen(
                                         )
                                         Spacer(modifier = Modifier.width(8.dp))
                                         Text(
-                                            "চিন্তা করছে...",
+                                            strings.aiThinkingLabel,
                                             style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp)
                                         )
                                     }
@@ -268,7 +268,6 @@ fun AiStudioScreen(
                                 }
                             }
 
-                            // AI Action Buttons: Copy & Use in Post
                             if (!isUser && msg.text.isNotBlank() && msg.id != "welcome") {
                                 Row(
                                     modifier = Modifier.padding(top = 4.dp),
@@ -277,34 +276,32 @@ fun AiStudioScreen(
                                     TextButton(
                                         onClick = {
                                             onCopyText(msg.text)
-                                            onShowSnackbar("কপি করা হয়েছে!")
+                                            onShowSnackbar(strings.copiedSnackbar)
                                         },
                                         contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp)
                                     ) {
                                         Icon(
                                             imageVector = Icons.Default.ContentCopy,
-                                            contentDescription = "Copy",
+                                            contentDescription = strings.copyBtn,
                                             modifier = Modifier.size(14.dp),
                                             tint = BrandPrimary
                                         )
                                         Spacer(modifier = Modifier.width(4.dp))
-                                        Text("কপি", fontSize = 11.sp, color = BrandPrimary)
+                                        Text(strings.copyBtn, fontSize = 11.sp, color = BrandPrimary)
                                     }
 
                                     TextButton(
-                                        onClick = {
-                                            onUseTextInPost(msg.text)
-                                        },
+                                        onClick = { onUseTextInPost(msg.text) },
                                         contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp)
                                     ) {
                                         Icon(
                                             imageVector = Icons.Default.PostAdd,
-                                            contentDescription = "Use in post",
+                                            contentDescription = strings.useInPostBtn,
                                             modifier = Modifier.size(14.dp),
                                             tint = BrandAccent
                                         )
                                         Spacer(modifier = Modifier.width(4.dp))
-                                        Text("পোস্টে ব্যবহার করুন", fontSize = 11.sp, color = BrandAccent)
+                                        Text(strings.useInPostBtn, fontSize = 11.sp, color = BrandAccent)
                                     }
                                 }
                             }
@@ -313,7 +310,6 @@ fun AiStudioScreen(
                 }
             }
 
-            // Quick prompts chips
             if (messages.size <= 3 && !isGenerating) {
                 FlowRow(
                     modifier = Modifier
@@ -322,7 +318,7 @@ fun AiStudioScreen(
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                     verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
-                    quickPrompts.forEach { prompt ->
+                    strings.aiQuickPrompts.forEach { prompt ->
                         AssistChip(
                             onClick = { sendMessage(prompt) },
                             label = { Text(prompt, fontSize = 11.sp) },
@@ -335,7 +331,6 @@ fun AiStudioScreen(
                 }
             }
 
-            // Input Row
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -345,7 +340,7 @@ fun AiStudioScreen(
                 OutlinedTextField(
                     value = inputText,
                     onValueChange = { inputText = it },
-                    placeholder = { Text("AI-কে যেকোনো প্রশ্ন বা নির্দেশনা দিন...", fontSize = 13.sp) },
+                    placeholder = { Text(strings.aiChatPlaceholder, fontSize = 13.sp) },
                     modifier = Modifier
                         .weight(1f)
                         .testTag("ai_chat_input"),

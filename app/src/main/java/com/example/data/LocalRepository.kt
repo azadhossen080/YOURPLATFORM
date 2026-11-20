@@ -48,6 +48,8 @@ class LocalRepository(context: Context) {
                         postText = obj.getString("postText"),
                         mediaUri = if (obj.has("mediaUri") && !obj.isNull("mediaUri")) obj.getString("mediaUri") else null,
                         mediaType = obj.optString("mediaType", "text"),
+                        thumbnailUri = if (obj.has("thumbnailUri") && !obj.isNull("thumbnailUri")) obj.getString("thumbnailUri") else null,
+                        isVideo = obj.optBoolean("isVideo", false),
                         likeCount = obj.optInt("likeCount", 0),
                         isLiked = obj.optBoolean("isLiked", false),
                         comments = commentsList,
@@ -71,6 +73,8 @@ class LocalRepository(context: Context) {
             obj.put("postText", p.postText)
             obj.put("mediaUri", p.mediaUri)
             obj.put("mediaType", p.mediaType)
+            obj.put("thumbnailUri", p.thumbnailUri)
+            obj.put("isVideo", p.isVideo)
             obj.put("likeCount", p.likeCount)
             obj.put("isLiked", p.isLiked)
             obj.put("isUserPost", p.isUserPost)

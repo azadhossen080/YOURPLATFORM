@@ -1,12 +1,12 @@
 package com.example.ui.screens
 
-import android.content.Context
+import android.Manifest
+import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -31,8 +31,9 @@ import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.PhotoLibrary
-import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.PlayCircleFilled
 import androidx.compose.material.icons.filled.VideoCall
+import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
@@ -55,7 +56,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -63,10 +63,16 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
 import coil.compose.AsyncImage
 import com.example.data.AiRepository
+import com.example.ui.components.UploadProgressCard
 import com.example.ui.theme.BrandAccent
 import com.example.ui.theme.BrandPrimary
+import com.example.util.AppStringsRegistry
+import com.example.util.LocalAppStrings
+import com.example.util.MediaProcessor
+import com.example.viewmodel.PostUploadState
 import kotlinx.coroutines.launch
 import java.io.File
 import java.io.FileOutputStream
@@ -74,24 +80,36 @@ import java.io.FileOutputStream
 @Composable
 fun CreatePostScreen(
     aiRepository: AiRepository,
+    uploadState: PostUploadState,
+    selectedLanguageCode: String,
     initialText: String = "",
-    onPostCreated: (text: String, type: String, mediaUri: String?) -> Unit,
+    onSubmitPost: (text: String, type: String, mediaUri: String?, previewUri: String?) -> Unit,
+    onRetryUpload: () -> Unit,
+    onDismissUpload: () -> Unit,
     onShowSnackbar: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val strings = LocalAppStrings.current
+    val aiLang = AppStringsRegistry.aiLanguageName(selectedLanguageCode)
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
+
     var postText by remember { mutableStateOf(initialText) }
     var selectedType by remember { mutableStateOf("text") } // "text", "camera", "gallery", "reels"
     var selectedMediaUri by remember { mutableStateOf<String?>(null) }
+    var selectedPreviewUri by remember { mutableStateOf<String?>(null) }
+    var selectedIsVideo by remember { mutableStateOf(false) }
 
     var showAiCaptionDialog by remember { mutableStateOf(false) }
     var aiTopicInput by remember { mutableStateOf("") }
-    var aiSelectedTone by remember { mutableStateOf("আকর্ষণীয়") }
+    var aiSelectedTone by remember(strings.aiTones) {
+        mutableStateOf(strings.aiTones.firstOrNull() ?: "Engaging")
+    }
     var isGeneratingCaption by remember { mutableStateOf(false) }
     var generatedCaptionResult by remember { mutableStateOf("") }
-
     var isEnhancingText by remember { mutableStateOf(false) }
+
+    val isUploading = uploadState is PostUploadState.Uploading
 
     LaunchedEffect(initialText) {
         if (initialText.isNotBlank()) {
@@ -99,15 +117,43 @@ fun CreatePostScreen(
         }
     }
 
+    // Clear draft fields once upload completes successfully
+    LaunchedEffect(uploadState) {
+        if (uploadState is PostUploadState.Success) {
+            postText = ""
+            selectedMediaUri = null
+            selectedPreviewUri = null
+            selectedIsVideo = false
+            selectedType = "text"
+        }
+    }
+
+    // Generate video preview thumbnail when a video is picked
+    LaunchedEffect(selectedMediaUri) {
+        val uriStr = selectedMediaUri
+        if (uriStr != null) {
+            val isVid = MediaProcessor.isVideoUri(context, uriStr, selectedType)
+            selectedIsVideo = isVid
+            selectedPreviewUri = if (isVid) {
+                MediaProcessor.extractVideoThumbnailPreview(context, uriStr) ?: uriStr
+            } else {
+                uriStr
+            }
+        } else {
+            selectedPreviewUri = null
+            selectedIsVideo = false
+        }
+    }
+
     fun saveBitmapToCache(bitmap: Bitmap): String? {
         return try {
             val file = File(context.cacheDir, "camera_capture_${System.currentTimeMillis()}.jpg")
-            val outputStream = FileOutputStream(file)
-            bitmap.compress(Bitmap.CompressFormat.JPEG, 90, outputStream)
-            outputStream.flush()
-            outputStream.close()
+            FileOutputStream(file).use { outputStream ->
+                bitmap.compress(Bitmap.CompressFormat.JPEG, 92, outputStream)
+                outputStream.flush()
+            }
             Uri.fromFile(file).toString()
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             null
         }
     }
@@ -116,9 +162,14 @@ fun CreatePostScreen(
         contract = ActivityResultContracts.PickVisualMedia()
     ) { uri: Uri? ->
         if (uri != null) {
-            selectedMediaUri = uri.toString()
-            selectedType = "gallery"
-            onShowSnackbar("গ্যালারি থেকে ছবি সিলেক্ট করা হয়েছে")
+            val uriStr = uri.toString()
+            val isVid = MediaProcessor.isVideoUri(context, uriStr)
+            selectedMediaUri = uriStr
+            selectedIsVideo = isVid
+            if (selectedType != "reels") {
+                selectedType = if (isVid) "reels" else "gallery"
+            }
+            onShowSnackbar(if (isVid) strings.mediaVideoSelected else strings.mediaGallerySelected)
         }
     }
 
@@ -128,8 +179,20 @@ fun CreatePostScreen(
         if (bitmap != null) {
             val savedUri = saveBitmapToCache(bitmap)
             selectedMediaUri = savedUri
+            selectedPreviewUri = savedUri
+            selectedIsVideo = false
             selectedType = "camera"
-            onShowSnackbar("ক্যামেরা দিয়ে ছবি তোলা হয়েছে")
+            onShowSnackbar(strings.mediaCameraSelected)
+        }
+    }
+
+    val cameraPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) {
+            cameraLauncher.launch(null)
+        } else {
+            onShowSnackbar(strings.cameraPermissionRequired)
         }
     }
 
@@ -140,35 +203,47 @@ fun CreatePostScreen(
             .padding(16.dp)
             .testTag("create_post_screen")
     ) {
+        // Active Upload / Processing Card
+        if (uploadState !is PostUploadState.Idle) {
+            UploadProgressCard(
+                uploadState = uploadState,
+                onRetry = onRetryUpload,
+                onDismiss = onDismissUpload,
+                modifier = Modifier.padding(bottom = 12.dp)
+            )
+        }
+
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = "নতুন কন্টেন্ট পোস্ট করুন",
+                text = strings.createPostTitle,
                 style = MaterialTheme.typography.titleMedium.copy(
                     fontWeight = FontWeight.Bold,
                     fontSize = 18.sp
                 )
             )
 
-            if (selectedMediaUri != null || selectedType != "text") {
+            if ((selectedMediaUri != null || selectedType != "text") && !isUploading) {
                 TextButton(
                     onClick = {
                         selectedMediaUri = null
+                        selectedPreviewUri = null
+                        selectedIsVideo = false
                         selectedType = "text"
                     }
                 ) {
                     Icon(
                         imageVector = Icons.Default.Close,
-                        contentDescription = "Remove",
+                        contentDescription = strings.removeLabel,
                         tint = MaterialTheme.colorScheme.error,
                         modifier = Modifier.size(16.dp)
                     )
                     Spacer(modifier = Modifier.width(4.dp))
                     Text(
-                        text = "রিমুভ",
+                        text = strings.removeLabel,
                         color = MaterialTheme.colorScheme.error,
                         fontSize = 12.sp
                     )
@@ -183,9 +258,9 @@ fun CreatePostScreen(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            // AI Caption Generator Button
             Button(
                 onClick = { showAiCaptionDialog = true },
+                enabled = !isUploading,
                 colors = ButtonDefaults.buttonColors(containerColor = BrandPrimary.copy(alpha = 0.15f)),
                 shape = RoundedCornerShape(8.dp),
                 modifier = Modifier
@@ -199,30 +274,29 @@ fun CreatePostScreen(
                     modifier = Modifier.size(16.dp)
                 )
                 Spacer(modifier = Modifier.width(6.dp))
-                Text("AI ক্যাপশন", color = BrandPrimary, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                Text(strings.aiCaptionBtn, color = BrandPrimary, fontSize = 12.sp, fontWeight = FontWeight.Bold)
             }
 
-            // AI Text Enhancer Button
             Button(
                 onClick = {
                     if (postText.isBlank()) {
-                        onShowSnackbar("আগে কিছু টেক্সট লিখুন, AI তা পরিমার্জন করবে!")
+                        onShowSnackbar(strings.enterTextFirstForAi)
                     } else {
                         isEnhancingText = true
                         coroutineScope.launch {
                             try {
-                                val improved = aiRepository.enhancePostText(postText)
+                                val improved = aiRepository.enhancePostText(postText, languageName = aiLang)
                                 postText = improved
-                                onShowSnackbar("AI দ্বারা পোস্ট পরিমার্জন সম্পন্ন হয়েছে! ✨")
-                            } catch (e: Exception) {
-                                onShowSnackbar("পরিমার্জনে সাময়িক সমস্যা হয়েছে")
+                                onShowSnackbar(strings.aiEnhanceSuccess)
+                            } catch (_: Exception) {
+                                onShowSnackbar(strings.aiEnhanceFailed)
                             } finally {
                                 isEnhancingText = false
                             }
                         }
                     }
                 },
-                enabled = !isEnhancingText,
+                enabled = !isEnhancingText && !isUploading,
                 colors = ButtonDefaults.buttonColors(containerColor = BrandAccent.copy(alpha = 0.15f)),
                 shape = RoundedCornerShape(8.dp),
                 modifier = Modifier
@@ -240,7 +314,7 @@ fun CreatePostScreen(
                     )
                 }
                 Spacer(modifier = Modifier.width(6.dp))
-                Text("AI পরিমার্জন", color = BrandAccent, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                Text(strings.aiEnhanceBtn, color = BrandAccent, fontSize = 12.sp, fontWeight = FontWeight.Bold)
             }
         }
 
@@ -250,9 +324,10 @@ fun CreatePostScreen(
         OutlinedTextField(
             value = postText,
             onValueChange = { postText = it },
+            enabled = !isUploading,
             placeholder = {
                 Text(
-                    text = if (selectedType == "reels") "ভিডিও বা রিলস ক্যাপশন লিখুন..." else "আপনার মন যা চায় লিখুন...",
+                    text = if (selectedType == "reels") strings.reelsTextPlaceholder else strings.postTextPlaceholder,
                     fontSize = 14.sp
                 )
             },
@@ -269,36 +344,82 @@ fun CreatePostScreen(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(180.dp)
+                    .height(190.dp)
                     .clip(RoundedCornerShape(12.dp))
+                    .background(Color(0xFF1E1E2C))
                     .border(1.5.dp, BrandPrimary, RoundedCornerShape(12.dp))
             ) {
                 AsyncImage(
-                    model = selectedMediaUri,
+                    model = selectedPreviewUri ?: selectedMediaUri,
                     contentDescription = "Selected Media Preview",
                     modifier = Modifier.fillMaxSize(),
                     contentScale = ContentScale.Crop
                 )
 
-                Box(
+                if (selectedIsVideo) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(Color.Black.copy(alpha = 0.25f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.PlayCircleFilled,
+                            contentDescription = strings.videoAttachedBadge,
+                            tint = Color.White.copy(alpha = 0.9f),
+                            modifier = Modifier.size(48.dp)
+                        )
+                    }
+                }
+
+                // Attachment type badge
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier
-                        .align(Alignment.TopEnd)
+                        .align(Alignment.TopStart)
                         .padding(8.dp)
-                        .size(32.dp)
-                        .clip(CircleShape)
-                        .background(Color.Black.copy(alpha = 0.6f))
-                        .clickable {
-                            selectedMediaUri = null
-                            selectedType = "text"
-                        },
-                    contentAlignment = Alignment.Center
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(Color.Black.copy(alpha = 0.65f))
+                        .padding(horizontal = 8.dp, vertical = 4.dp)
                 ) {
                     Icon(
-                        imageVector = Icons.Default.Close,
-                        contentDescription = "Clear",
+                        imageVector = if (selectedIsVideo) Icons.Default.Videocam else Icons.Default.PhotoLibrary,
+                        contentDescription = null,
                         tint = Color.White,
-                        modifier = Modifier.size(18.dp)
+                        modifier = Modifier.size(13.dp)
                     )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = if (selectedIsVideo) strings.videoAttachedBadge else strings.photoAttachedBadge,
+                        color = Color.White,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+
+                if (!isUploading) {
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(8.dp)
+                            .size(32.dp)
+                            .clip(CircleShape)
+                            .background(Color.Black.copy(alpha = 0.6f))
+                            .clickable {
+                                selectedMediaUri = null
+                                selectedPreviewUri = null
+                                selectedIsVideo = false
+                                selectedType = "text"
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = strings.removeLabel,
+                            tint = Color.White,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
                 }
             }
         } else if (selectedType == "reels") {
@@ -321,7 +442,7 @@ fun CreatePostScreen(
                     )
                     Spacer(modifier = Modifier.height(6.dp))
                     Text(
-                        text = "Waves রিলস ভিডিও মোড সিলেক্ট করা হয়েছে",
+                        text = strings.reelsModeSelectedTitle,
                         style = MaterialTheme.typography.bodyMedium.copy(
                             fontWeight = FontWeight.Bold,
                             color = BrandPrimary
@@ -334,7 +455,7 @@ fun CreatePostScreen(
         Spacer(modifier = Modifier.height(16.dp))
 
         Text(
-            text = "মিডিয়া নির্বাচন করুন:",
+            text = strings.selectMediaLabel,
             style = MaterialTheme.typography.bodySmall.copy(
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
@@ -348,9 +469,19 @@ fun CreatePostScreen(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            // Camera Button
             OutlinedButton(
-                onClick = { cameraLauncher.launch(null) },
+                onClick = {
+                    val hasCam = ContextCompat.checkSelfPermission(
+                        context,
+                        Manifest.permission.CAMERA
+                    ) == PackageManager.PERMISSION_GRANTED
+                    if (hasCam) {
+                        cameraLauncher.launch(null)
+                    } else {
+                        cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+                    }
+                },
+                enabled = !isUploading,
                 modifier = Modifier
                     .weight(1f)
                     .testTag("pick_camera_button"),
@@ -363,22 +494,22 @@ fun CreatePostScreen(
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Icon(
                         imageVector = Icons.Default.CameraAlt,
-                        contentDescription = "Camera",
+                        contentDescription = strings.cameraLabel,
                         tint = Color(0xFFE91E63),
                         modifier = Modifier.size(20.dp)
                     )
                     Spacer(modifier = Modifier.height(2.dp))
-                    Text("ক্যামেরা", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurface)
+                    Text(strings.cameraLabel, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurface)
                 }
             }
 
-            // Gallery Button
             OutlinedButton(
                 onClick = {
                     galleryLauncher.launch(
                         PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageAndVideo)
                     )
                 },
+                enabled = !isUploading,
                 modifier = Modifier
                     .weight(1f)
                     .testTag("pick_gallery_button"),
@@ -391,22 +522,24 @@ fun CreatePostScreen(
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Icon(
                         imageVector = Icons.Default.PhotoLibrary,
-                        contentDescription = "Gallery",
+                        contentDescription = strings.galleryLabel,
                         tint = Color(0xFF4CAF50),
                         modifier = Modifier.size(20.dp)
                     )
                     Spacer(modifier = Modifier.height(2.dp))
-                    Text("গ্যালারি", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurface)
+                    Text(strings.galleryLabel, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurface)
                 }
             }
 
-            // Reels Button
             OutlinedButton(
                 onClick = {
                     selectedType = "reels"
-                    selectedMediaUri = null
-                    onShowSnackbar("Waves রিলস মোড সিলেক্ট করা হয়েছে")
+                    galleryLauncher.launch(
+                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.VideoOnly)
+                    )
+                    onShowSnackbar(strings.reelsModeSelectedSnackbar)
                 },
+                enabled = !isUploading,
                 modifier = Modifier
                     .weight(1f)
                     .testTag("pick_reels_button"),
@@ -419,12 +552,12 @@ fun CreatePostScreen(
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Icon(
                         imageVector = Icons.Default.VideoCall,
-                        contentDescription = "Reels",
+                        contentDescription = strings.reelsLabel,
                         tint = BrandPrimary,
                         modifier = Modifier.size(20.dp)
                     )
                     Spacer(modifier = Modifier.height(2.dp))
-                    Text("রিলস", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurface)
+                    Text(strings.reelsLabel, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurface)
                 }
             }
         }
@@ -435,16 +568,13 @@ fun CreatePostScreen(
         Button(
             onClick = {
                 if (postText.isNotBlank() || selectedMediaUri != null || selectedType != "text") {
-                    val finalCaption = if (postText.isBlank()) "নতুন আপডেট পোস্ট" else postText.trim()
-                    onPostCreated(finalCaption, selectedType, selectedMediaUri)
-                    postText = ""
-                    selectedMediaUri = null
-                    selectedType = "text"
-                    onShowSnackbar("পোস্ট সফলভাবে পাবলিশ হয়েছে!")
+                    val finalCaption = if (postText.isBlank()) strings.defaultMediaPostText else postText.trim()
+                    onSubmitPost(finalCaption, selectedType, selectedMediaUri, selectedPreviewUri)
                 } else {
-                    onShowSnackbar("কিছু লিখুন অথবা মিডিয়া যুক্ত করুন!")
+                    onShowSnackbar(strings.enterTextOrMediaSnackbar)
                 }
             },
+            enabled = !isUploading,
             modifier = Modifier
                 .fillMaxWidth()
                 .height(50.dp)
@@ -452,24 +582,36 @@ fun CreatePostScreen(
             colors = ButtonDefaults.buttonColors(containerColor = BrandPrimary),
             shape = RoundedCornerShape(10.dp)
         ) {
-            Icon(
-                imageVector = Icons.AutoMirrored.Filled.Send,
-                contentDescription = null,
-                modifier = Modifier.size(18.dp)
-            )
-            Spacer(modifier = Modifier.width(8.dp))
-            Text(
-                text = "পাবলিশ করুন",
-                fontSize = 16.sp,
-                fontWeight = FontWeight.Bold
-            )
+            if (isUploading) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(18.dp),
+                    color = Color.White,
+                    strokeWidth = 2.dp
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = strings.publishingButton,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            } else {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.Send,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = strings.publishButton,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
         }
     }
 
     // AI Caption Generator Dialog
     if (showAiCaptionDialog) {
-        val tones = listOf("আকর্ষণীয়", "কাব্যিক", "মজার", "প্রফেশনাল", "অনুপ্রেরণামূলক")
-
         AlertDialog(
             onDismissRequest = {
                 if (!isGeneratingCaption) showAiCaptionDialog = false
@@ -478,30 +620,30 @@ fun CreatePostScreen(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = BrandPrimary)
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("AI ক্যাপশন জেনারেটর", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold))
+                    Text(strings.aiCaptionDialogTitle, style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold))
                 }
             },
             text = {
                 Column {
-                    Text("বিষয় বা অনুভূতি লিখুন (যেমন: সমুদ্র ভ্রমণ, নতুন কাজ, বৃষ্টি):", fontSize = 12.sp)
+                    Text(strings.aiTopicPrompt, fontSize = 12.sp)
                     Spacer(modifier = Modifier.height(6.dp))
                     OutlinedTextField(
                         value = aiTopicInput,
                         onValueChange = { aiTopicInput = it },
-                        placeholder = { Text("কী নিয়ে পোস্ট করতে চান?", fontSize = 13.sp) },
+                        placeholder = { Text(strings.aiTopicPlaceholder, fontSize = 13.sp) },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
                         shape = RoundedCornerShape(10.dp)
                     )
 
                     Spacer(modifier = Modifier.height(10.dp))
-                    Text("ক্যাপশনের ধরন (Tone):", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                    Text(strings.aiToneLabel, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                     Spacer(modifier = Modifier.height(4.dp))
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
-                        tones.take(3).forEach { tone ->
+                        strings.aiTones.take(3).forEach { tone ->
                             AssistChip(
                                 onClick = { aiSelectedTone = tone },
                                 label = { Text(tone, fontSize = 11.sp) },
@@ -515,7 +657,7 @@ fun CreatePostScreen(
 
                     if (generatedCaptionResult.isNotBlank()) {
                         Spacer(modifier = Modifier.height(10.dp))
-                        Text("তৈরিকৃত ক্যাপশন:", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = BrandPrimary)
+                        Text(strings.aiGeneratedCaptionLabel, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = BrandPrimary)
                         Spacer(modifier = Modifier.height(4.dp))
                         Box(
                             modifier = Modifier
@@ -537,25 +679,29 @@ fun CreatePostScreen(
                             showAiCaptionDialog = false
                             generatedCaptionResult = ""
                             aiTopicInput = ""
-                            onShowSnackbar("ক্যাপশন পোস্টে যুক্ত হয়েছে!")
+                            onShowSnackbar(strings.aiCaptionUsedSnackbar)
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = BrandPrimary)
                     ) {
-                        Text("ক্যাপশন ব্যবহার করুন")
+                        Text(strings.aiUseCaptionBtn)
                     }
                 } else {
                     Button(
                         onClick = {
                             if (aiTopicInput.isBlank()) {
-                                onShowSnackbar("দয়া করে বিষয় উল্লেখ করুন")
+                                onShowSnackbar(strings.aiEnterTopicSnackbar)
                             } else {
                                 isGeneratingCaption = true
                                 coroutineScope.launch {
                                     try {
-                                        val result = aiRepository.generateCaption(aiTopicInput, aiSelectedTone)
+                                        val result = aiRepository.generateCaption(
+                                            topic = aiTopicInput,
+                                            tone = aiSelectedTone,
+                                            languageName = aiLang
+                                        )
                                         generatedCaptionResult = result
-                                    } catch (e: Exception) {
-                                        onShowSnackbar("ক্যাপশন তৈরিতে সাময়িক সমস্যা হয়েছে")
+                                    } catch (_: Exception) {
+                                        onShowSnackbar(strings.aiCaptionFailedSnackbar)
                                     } finally {
                                         isGeneratingCaption = false
                                     }
@@ -568,7 +714,7 @@ fun CreatePostScreen(
                         if (isGeneratingCaption) {
                             CircularProgressIndicator(modifier = Modifier.size(16.dp), color = Color.White, strokeWidth = 2.dp)
                         } else {
-                            Text("তৈরি করুন")
+                            Text(strings.aiGenerateBtn)
                         }
                     }
                 }
@@ -580,7 +726,7 @@ fun CreatePostScreen(
                         generatedCaptionResult = ""
                     }
                 ) {
-                    Text("বন্ধ করুন")
+                    Text(strings.close)
                 }
             }
         )

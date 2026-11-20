@@ -1,7 +1,6 @@
 package com.example.ui.screens
 
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -61,6 +60,8 @@ import androidx.compose.ui.unit.sp
 import com.example.model.AppSettings
 import com.example.model.PostModel
 import com.example.ui.theme.BrandPrimary
+import com.example.util.AppStringsRegistry
+import com.example.util.LocalAppStrings
 
 data class LanguageOption(
     val name: String,
@@ -79,6 +80,7 @@ fun SettingsScreen(
     onShowSnackbar: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val strings = LocalAppStrings.current
     var showLanguageDialog by remember { mutableStateOf(false) }
     var showManagePostsSheet by remember { mutableStateOf(false) }
 
@@ -104,12 +106,15 @@ fun SettingsScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("সেটিং এন্ড প্রাইভেসি", fontWeight = FontWeight.Bold) },
+                title = { Text(strings.settingsTitle, fontWeight = FontWeight.Bold) },
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
+                    IconButton(
+                        onClick = onBack,
+                        modifier = Modifier.testTag("settings_back_button")
+                    ) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Back"
+                            contentDescription = strings.back
                         )
                     }
                 },
@@ -131,7 +136,7 @@ fun SettingsScreen(
         ) {
             // Section 1: Language & Region
             Text(
-                text = "ভাষা ও অঞ্চল (Language & Region)",
+                text = strings.languageSection,
                 style = MaterialTheme.typography.titleSmall.copy(
                     fontWeight = FontWeight.Bold,
                     color = BrandPrimary
@@ -143,7 +148,8 @@ fun SettingsScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clickable { showLanguageDialog = true }
-                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                    .padding(horizontal = 16.dp, vertical = 12.dp)
+                    .testTag("language_selector_row"),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Icon(
@@ -155,7 +161,7 @@ fun SettingsScreen(
                 Spacer(modifier = Modifier.width(16.dp))
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = "অ্যাপের ভাষা নির্বাচন করুন (World Languages)",
+                        text = strings.selectLanguageTitle,
                         style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium)
                     )
                     Text(
@@ -181,7 +187,7 @@ fun SettingsScreen(
 
             // Section 2: Content & Post Management
             Text(
-                text = "কন্টেন্ট ও পোস্ট ম্যানেজমেন্ট",
+                text = strings.contentManagementSection,
                 style = MaterialTheme.typography.titleSmall.copy(
                     fontWeight = FontWeight.Bold,
                     color = BrandPrimary
@@ -205,11 +211,11 @@ fun SettingsScreen(
                 Spacer(modifier = Modifier.width(16.dp))
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = "ম্যানেজ পোস্ট (Manage Posts)",
+                        text = strings.managePostsTitle,
                         style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium)
                     )
                     Text(
-                        text = "প্রকাশিত পোস্ট ডিলিট বা এডিট করতে ট্যাপ করুন",
+                        text = strings.managePostsSubtitle,
                         style = MaterialTheme.typography.bodySmall.copy(
                             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                         )
@@ -239,11 +245,11 @@ fun SettingsScreen(
                 Spacer(modifier = Modifier.width(16.dp))
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = "কন্টেন্ট প্রিপারেশন ও ডিমিং সিস্টেম",
+                        text = strings.dimmingSystemTitle,
                         style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium)
                     )
                     Text(
-                        text = "ডিমিং পারসেন্টেজ: ${settings.dimmingLevel.toInt()}%",
+                        text = strings.dimmingPercentLabel(settings.dimmingLevel.toInt()),
                         style = MaterialTheme.typography.bodySmall.copy(
                             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                         )
@@ -258,7 +264,6 @@ fun SettingsScreen(
                 )
             }
 
-            // Dimming Slider
             if (settings.isDimmingEnabled) {
                 Slider(
                     value = settings.dimmingLevel,
@@ -282,7 +287,7 @@ fun SettingsScreen(
 
             // Section 3: Privacy & Security
             Text(
-                text = "প্রাইভেসি ও সিকিউরিটি",
+                text = strings.privacySecuritySection,
                 style = MaterialTheme.typography.titleSmall.copy(
                     fontWeight = FontWeight.Bold,
                     color = BrandPrimary
@@ -305,11 +310,11 @@ fun SettingsScreen(
                 Spacer(modifier = Modifier.width(16.dp))
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = "লোকেশন পারমিশন (Location Services)",
+                        text = strings.locationPermissionTitle,
                         style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium)
                     )
                     Text(
-                        text = "পোস্টে লোকেশন তথ্য শেয়ারিং অপশন",
+                        text = strings.locationPermissionSubtitle,
                         style = MaterialTheme.typography.bodySmall.copy(
                             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                         )
@@ -319,7 +324,7 @@ fun SettingsScreen(
                     checked = settings.isLocationAllowed,
                     onCheckedChange = { checked ->
                         onUpdateSettings(settings.copy(isLocationAllowed = checked))
-                        onShowSnackbar(if (checked) "লোকেশন সার্ভিস সক্রিয় করা হয়েছে" else "লোকেশন সার্ভিস বন্ধ করা হয়েছে")
+                        onShowSnackbar(if (checked) strings.locationEnabledSnackbar else strings.locationDisabledSnackbar)
                     },
                     colors = SwitchDefaults.colors(checkedThumbColor = BrandPrimary, checkedTrackColor = BrandPrimary.copy(alpha = 0.5f))
                 )
@@ -333,7 +338,7 @@ fun SettingsScreen(
 
             // Section 4: Display & Dark Mode
             Text(
-                text = "ডিসপ্লে ও থিম (Display & Theme)",
+                text = strings.displayThemeSection,
                 style = MaterialTheme.typography.titleSmall.copy(
                     fontWeight = FontWeight.Bold,
                     color = BrandPrimary
@@ -356,11 +361,11 @@ fun SettingsScreen(
                 Spacer(modifier = Modifier.width(16.dp))
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = "ডার্ক মোড (Dark Mode)",
+                        text = strings.darkModeTitle,
                         style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium)
                     )
                     Text(
-                        text = if (settings.isDarkMode) "ডার্ক থিম সক্রিয়" else "লাইট থিম সক্রিয়",
+                        text = if (settings.isDarkMode) strings.darkThemeActive else strings.lightThemeActive,
                         style = MaterialTheme.typography.bodySmall.copy(
                             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                         )
@@ -382,7 +387,7 @@ fun SettingsScreen(
         var searchQuery by remember { mutableStateOf("") }
         val filteredLanguages = languages.filter {
             it.name.contains(searchQuery, ignoreCase = true) ||
-            it.code.contains(searchQuery, ignoreCase = true)
+                it.code.contains(searchQuery, ignoreCase = true)
         }
 
         AlertDialog(
@@ -390,14 +395,14 @@ fun SettingsScreen(
             title = {
                 Column {
                     Text(
-                        text = "বিশ্বের সকল ভাষা / Select Language",
+                        text = strings.searchLanguageDialogTitle,
                         style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
                     )
                     Spacer(modifier = Modifier.height(10.dp))
                     OutlinedTextField(
                         value = searchQuery,
                         onValueChange = { searchQuery = it },
-                        placeholder = { Text("Search language / ভাষা খুঁজুন...", fontSize = 12.sp) },
+                        placeholder = { Text(strings.searchLanguagePlaceholder, fontSize = 12.sp) },
                         leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
@@ -409,7 +414,7 @@ fun SettingsScreen(
                 Box(modifier = Modifier.height(300.dp)) {
                     if (filteredLanguages.isEmpty()) {
                         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                            Text("কোনো ভাষা পাওয়া যায়নি!")
+                            Text(strings.noLanguageFound)
                         }
                     } else {
                         LazyColumn {
@@ -425,18 +430,26 @@ fun SettingsScreen(
                                                 )
                                             )
                                             showLanguageDialog = false
-                                            onShowSnackbar("ভাষা নির্ধারণ করা হয়েছে: ${lang.name}")
+                                            val targetStrings = AppStringsRegistry.forCode(lang.code)
+                                            onShowSnackbar(targetStrings.languageUpdatedSnackbar(lang.name))
                                         }
-                                        .padding(vertical = 10.dp),
+                                        .padding(vertical = 10.dp)
+                                        .testTag("language_option_${lang.code}"),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Text(lang.flag, fontSize = 22.sp)
                                     Spacer(modifier = Modifier.width(12.dp))
                                     Column(modifier = Modifier.weight(1f)) {
                                         Text(lang.name, style = MaterialTheme.typography.bodyMedium.copy(fontSize = 13.sp))
-                                        Text("Code: ${lang.code}", style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)))
+                                        Text(
+                                            "Code: ${lang.code}",
+                                            style = MaterialTheme.typography.bodySmall.copy(
+                                                fontSize = 11.sp,
+                                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                                            )
+                                        )
                                     }
-                                    if (settings.selectedLanguage == lang.name) {
+                                    if (settings.selectedLanguageCode == lang.code || settings.selectedLanguage == lang.name) {
                                         Icon(
                                             imageVector = Icons.Default.CheckCircle,
                                             contentDescription = "Selected",
@@ -452,7 +465,7 @@ fun SettingsScreen(
             },
             confirmButton = {
                 TextButton(onClick = { showLanguageDialog = false }) {
-                    Text("বন্ধ করুন")
+                    Text(strings.close)
                 }
             }
         )
@@ -472,7 +485,7 @@ fun SettingsScreen(
                     .padding(bottom = 24.dp)
             ) {
                 Text(
-                    text = "ম্যানেজ পোস্ট (Manage Posts)",
+                    text = strings.managePostsTitle,
                     style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
                 )
                 Spacer(modifier = Modifier.height(12.dp))
@@ -485,7 +498,7 @@ fun SettingsScreen(
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            text = "আপনার ডিলিট করার মতো কোনো পোস্ট নেই।",
+                            text = strings.noPostsToDelete,
                             style = MaterialTheme.typography.bodyMedium.copy(
                                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                             )
@@ -518,12 +531,12 @@ fun SettingsScreen(
                                 IconButton(
                                     onClick = {
                                         onDeletePost(post.id)
-                                        onShowSnackbar("পোস্টটি ডিলিট করা হয়েছে!")
+                                        onShowSnackbar(strings.postDeletedSnackbar)
                                     }
                                 ) {
                                     Icon(
                                         imageVector = Icons.Default.Delete,
-                                        contentDescription = "Delete Post",
+                                        contentDescription = strings.delete,
                                         tint = MaterialTheme.colorScheme.error
                                     )
                                 }

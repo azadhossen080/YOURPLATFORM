@@ -35,6 +35,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.ui.theme.BrandPrimary
+import com.example.util.LocalAppStrings
 
 data class ActivityItem(
     val title: String,
@@ -47,6 +48,7 @@ data class ActivityItem(
 fun ActivityCenterSheet(
     onDismiss: () -> Unit
 ) {
+    val strings = LocalAppStrings.current
     val activities = listOf(
         ActivityItem("আপনি একটি নতুন রিলস ভিডিও পোস্ট করেছেন", "১৫ মিনিট আগে", "post"),
         ActivityItem("Tech World এর পোস্টে লাইক দিয়েছেন", "১ ঘণ্টা আগে", "like"),
@@ -78,7 +80,7 @@ fun ActivityCenterSheet(
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = "অ্যাক্টিভিটি সেন্টার",
+                    text = strings.activityCenterTitle,
                     style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
                 )
             }

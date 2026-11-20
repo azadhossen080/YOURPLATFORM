@@ -1,5 +1,8 @@
 package com.example.ui.components
 
+import android.net.Uri
+import android.widget.MediaController
+import android.widget.VideoView
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.Image
@@ -10,6 +13,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -18,9 +22,11 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PlayCircleFilled
 import androidx.compose.material.icons.filled.ThumbUp
+import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material.icons.outlined.ChatBubbleOutline
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Share
@@ -33,6 +39,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -51,11 +58,15 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import coil.compose.AsyncImage
 import com.example.R
 import com.example.model.PostModel
 import com.example.ui.theme.BrandAccent
 import com.example.ui.theme.BrandPrimary
+import com.example.util.LocalAppStrings
 
 @Composable
 fun PostCardItem(
@@ -66,7 +77,9 @@ fun PostCardItem(
     onDeleteClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
+    val strings = LocalAppStrings.current
     var menuExpanded by remember { mutableStateOf(false) }
+    var showMediaViewer by remember { mutableStateOf(false) }
 
     Card(
         modifier = modifier
@@ -135,11 +148,11 @@ fun PostCardItem(
                             onDismissRequest = { menuExpanded = false }
                         ) {
                             DropdownMenuItem(
-                                text = { Text("পোস্ট ডিলিট করুন", color = MaterialTheme.colorScheme.error) },
+                                text = { Text(strings.deletePostMenu, color = MaterialTheme.colorScheme.error) },
                                 leadingIcon = {
                                     Icon(
                                         imageVector = Icons.Outlined.Delete,
-                                        contentDescription = "Delete",
+                                        contentDescription = strings.delete,
                                         tint = MaterialTheme.colorScheme.error
                                     )
                                 },
@@ -178,9 +191,7 @@ fun PostCardItem(
                         ),
                     contentAlignment = Alignment.Center
                 ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
                         Image(
                             painter = painterResource(id = R.drawable.ic_app_logo),
                             contentDescription = "Logo",
@@ -208,15 +219,70 @@ fun PostCardItem(
                 }
             } else if (!post.mediaUri.isNullOrBlank()) {
                 Spacer(modifier = Modifier.height(10.dp))
-                AsyncImage(
-                    model = post.mediaUri,
-                    contentDescription = "Post Media",
+                val displayModel = post.thumbnailUri ?: post.mediaUri
+                Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(200.dp)
-                        .clip(RoundedCornerShape(12.dp)),
-                    contentScale = ContentScale.Crop
-                )
+                        .height(210.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(Color(0xFF1E1E2C))
+                        .clickable { showMediaViewer = true },
+                    contentAlignment = Alignment.Center
+                ) {
+                    AsyncImage(
+                        model = displayModel,
+                        contentDescription = "Post Media",
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop
+                    )
+
+                    if (post.isVideo || post.mediaType == "reels") {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(Color.Black.copy(alpha = 0.28f))
+                        )
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(
+                                imageVector = Icons.Filled.PlayCircleFilled,
+                                contentDescription = strings.tapToPlayVideo,
+                                tint = Color.White.copy(alpha = 0.92f),
+                                modifier = Modifier.size(54.dp)
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = strings.tapToPlayVideo,
+                                color = Color.White,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .align(Alignment.TopStart)
+                                .padding(10.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(Color.Black.copy(alpha = 0.65f))
+                                .padding(horizontal = 8.dp, vertical = 4.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Videocam,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.size(13.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = strings.videoPostLabel,
+                                color = Color.White,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
             } else if (post.mediaType == "reels") {
                 Spacer(modifier = Modifier.height(10.dp))
                 Box(
@@ -236,7 +302,7 @@ fun PostCardItem(
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            text = "Waves Reel কন্টেন্ট",
+                            text = strings.wavesReelContent,
                             color = Color.White,
                             fontWeight = FontWeight.Bold,
                             fontSize = 13.sp
@@ -259,7 +325,6 @@ fun PostCardItem(
                 horizontalArrangement = Arrangement.SpaceAround,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Like Button
                 val likeColor by animateColorAsState(
                     targetValue = if (post.isLiked) BrandPrimary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f),
                     animationSpec = spring(),
@@ -278,13 +343,12 @@ fun PostCardItem(
                     )
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
-                        text = "${post.likeCount} লাইক",
+                        text = strings.likesCount(post.likeCount),
                         color = likeColor,
                         style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp)
                     )
                 }
 
-                // Comment Button
                 TextButton(
                     onClick = onCommentClick,
                     modifier = Modifier.testTag("post_comment_button_${post.id}")
@@ -297,29 +361,90 @@ fun PostCardItem(
                     )
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
-                        text = "${post.comments.size} কমেন্ট",
+                        text = strings.commentsCount(post.comments.size),
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f),
                         style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp)
                     )
                 }
 
-                // Share Button
                 TextButton(
                     onClick = onShareClick,
                     modifier = Modifier.testTag("post_share_button_${post.id}")
                 ) {
                     Icon(
                         imageVector = Icons.Outlined.Share,
-                        contentDescription = "Share",
+                        contentDescription = strings.shareLabel,
                         tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f),
                         modifier = Modifier.size(18.dp)
                     )
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
-                        text = "শেয়ার",
+                        text = strings.shareLabel,
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f),
                         style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp)
                     )
+                }
+            }
+        }
+    }
+
+    if (showMediaViewer && !post.mediaUri.isNullOrBlank()) {
+        Dialog(
+            onDismissRequest = { showMediaViewer = false },
+            properties = DialogProperties(usePlatformDefaultWidth = false)
+        ) {
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                shape = RoundedCornerShape(16.dp),
+                color = Color.Black
+            ) {
+                Box(modifier = Modifier.fillMaxWidth()) {
+                    if (post.isVideo) {
+                        AndroidView(
+                            factory = { ctx ->
+                                VideoView(ctx).apply {
+                                    setVideoURI(Uri.parse(post.mediaUri))
+                                    val controller = MediaController(ctx)
+                                    controller.setAnchorView(this)
+                                    setMediaController(controller)
+                                    setOnPreparedListener { mp ->
+                                        mp.isLooping = true
+                                        start()
+                                    }
+                                }
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(360.dp)
+                        )
+                    } else {
+                        AsyncImage(
+                            model = post.mediaUri,
+                            contentDescription = "Full Photo",
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(380.dp),
+                            contentScale = ContentScale.Fit
+                        )
+                    }
+
+                    IconButton(
+                        onClick = { showMediaViewer = false },
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(8.dp)
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .background(Color.Black.copy(alpha = 0.65f))
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = strings.close,
+                            tint = Color.White
+                        )
+                    }
                 }
             }
         }

@@ -54,6 +54,7 @@ import com.example.model.FriendUser
 import com.example.model.PostModel
 import com.example.ui.components.PostCardItem
 import com.example.ui.theme.BrandPrimary
+import com.example.util.LocalAppStrings
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -72,6 +73,7 @@ fun SearchScreen(
     onDeletePost: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val strings = LocalAppStrings.current
     val trendingTags = listOf("#YOURPLATFORM", "#Waves", "#Tech", "#Bangladesh", "#Reels", "#স্বাগতম")
 
     val filteredPosts = if (searchQuery.isBlank()) {
@@ -99,15 +101,14 @@ fun SearchScreen(
             .padding(horizontal = 14.dp, vertical = 10.dp)
             .testTag("search_screen")
     ) {
-        // Search Input
         OutlinedTextField(
             value = searchQuery,
             onValueChange = onQueryChange,
-            placeholder = { Text("বন্ধু, ইউজার বা বিষয় খুঁজুন...", fontSize = 14.sp) },
+            placeholder = { Text(strings.searchPlaceholder, fontSize = 14.sp) },
             leadingIcon = {
                 Icon(
                     imageVector = Icons.Default.Search,
-                    contentDescription = "Search",
+                    contentDescription = strings.navSearch,
                     tint = BrandPrimary
                 )
             },
@@ -116,7 +117,7 @@ fun SearchScreen(
                     IconButton(onClick = { onQueryChange("") }) {
                         Icon(
                             imageVector = Icons.Default.Close,
-                            contentDescription = "Clear",
+                            contentDescription = strings.close,
                             tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
                         )
                     }
@@ -131,9 +132,8 @@ fun SearchScreen(
 
         Spacer(modifier = Modifier.height(10.dp))
 
-        // Trending Tags
         Text(
-            text = "জনপ্রিয় বিষয়:",
+            text = strings.trendingTopicsLabel,
             style = MaterialTheme.typography.bodySmall.copy(
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
@@ -161,7 +161,6 @@ fun SearchScreen(
 
         Spacer(modifier = Modifier.height(10.dp))
 
-        // People & Posts Unified Scrollable Results
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(bottom = 16.dp)
@@ -176,14 +175,14 @@ fun SearchScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = if (searchQuery.isBlank()) "মানুষজন ও ফ্রেন্ড সাজেশন" else "খুঁজে পাওয়া ব্যবহারকারী (${filteredPeople.size})",
+                            text = if (searchQuery.isBlank()) strings.peopleSuggestionsLabel else strings.foundUsersLabel(filteredPeople.size),
                             style = MaterialTheme.typography.bodySmall.copy(
                                 fontWeight = FontWeight.Bold,
                                 color = BrandPrimary
                             )
                         )
                         Text(
-                            text = "সব দেখুন",
+                            text = strings.seeAllLabel,
                             style = MaterialTheme.typography.bodySmall.copy(
                                 fontWeight = FontWeight.SemiBold,
                                 color = BrandPrimary
@@ -261,7 +260,7 @@ fun SearchScreen(
                                             ) {
                                                 Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(13.dp))
                                                 Spacer(modifier = Modifier.width(4.dp))
-                                                Text("গ্রহণ করুন", fontSize = 11.sp)
+                                                Text(strings.acceptBtn, fontSize = 11.sp)
                                             }
                                         }
                                         FriendStatus.OUTGOING_REQUEST -> {
@@ -271,7 +270,7 @@ fun SearchScreen(
                                                 contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
                                                 modifier = Modifier.fillMaxWidth().height(36.dp)
                                             ) {
-                                                Text("পাঠানো হয়েছে", fontSize = 11.sp)
+                                                Text(strings.sentBtn, fontSize = 11.sp)
                                             }
                                         }
                                         FriendStatus.FRIEND -> {
@@ -281,7 +280,7 @@ fun SearchScreen(
                                                 contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
                                                 modifier = Modifier.fillMaxWidth().height(36.dp)
                                             ) {
-                                                Text("বন্ধু ✓", fontSize = 11.sp, color = BrandPrimary)
+                                                Text(strings.friendBadgeBtn, fontSize = 11.sp, color = BrandPrimary)
                                             }
                                         }
                                         FriendStatus.SUGGESTION -> {
@@ -294,7 +293,7 @@ fun SearchScreen(
                                             ) {
                                                 Icon(Icons.Default.PersonAdd, contentDescription = null, modifier = Modifier.size(13.dp))
                                                 Spacer(modifier = Modifier.width(4.dp))
-                                                Text("অ্যাড ফ্রেন্ড", fontSize = 11.sp)
+                                                Text(strings.addFriendBtn, fontSize = 11.sp)
                                             }
                                         }
                                     }
@@ -314,7 +313,7 @@ fun SearchScreen(
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            text = "কোনো ফলাফল পাওয়া যায়নি!",
+                            text = strings.noSearchResults,
                             style = MaterialTheme.typography.bodyMedium.copy(
                                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
                             )

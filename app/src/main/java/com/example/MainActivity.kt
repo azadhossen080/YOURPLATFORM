@@ -22,6 +22,8 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -30,6 +32,8 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.model.FriendStatus
 import com.example.model.PostModel
@@ -47,10 +51,14 @@ import com.example.ui.screens.ProfileScreen
 import com.example.ui.screens.SearchScreen
 import com.example.ui.screens.SettingsScreen
 import com.example.ui.screens.SplashScreen
+import com.example.ui.screens.WavesScreen
 import com.example.ui.theme.MyApplicationTheme
+import com.example.util.AppStringsRegistry
+import com.example.util.LocalAppStrings
 import com.example.util.configureAppCheck
 import com.example.viewmodel.PlatformViewModel
 import kotlinx.coroutines.launch
+import java.util.Locale
 
 enum class SubScreen {
     NOTIFICATIONS,
@@ -68,25 +76,46 @@ class MainActivity : ComponentActivity() {
         setContent {
             val viewModel: PlatformViewModel = viewModel()
             val settings by viewModel.settings.collectAsState()
+            val localizedStrings = remember(settings.selectedLanguageCode) {
+                AppStringsRegistry.forCode(settings.selectedLanguageCode)
+            }
+            val layoutDir = remember(settings.selectedLanguageCode) {
+                if (AppStringsRegistry.isRtl(settings.selectedLanguageCode)) {
+                    LayoutDirection.Rtl
+                } else {
+                    LayoutDirection.Ltr
+                }
+            }
 
-            MyApplicationTheme(darkTheme = settings.isDarkMode) {
-                MainAppContent(
-                    viewModel = viewModel,
-                    onShareText = { text ->
-                        val sendIntent = Intent().apply {
-                            action = Intent.ACTION_SEND
-                            putExtra(Intent.EXTRA_TEXT, text)
-                            type = "text/plain"
+            LaunchedEffect(settings.selectedLanguageCode) {
+                val locale = Locale.forLanguageTag(settings.selectedLanguageCode.replace("_", "-"))
+                Locale.setDefault(locale)
+            }
+
+            CompositionLocalProvider(
+                LocalAppStrings provides localizedStrings,
+                LocalLayoutDirection provides layoutDir
+            ) {
+                MyApplicationTheme(darkTheme = settings.isDarkMode) {
+                    val currentStrings = LocalAppStrings.current
+                    MainAppContent(
+                        viewModel = viewModel,
+                        onShareText = { text ->
+                            val sendIntent = Intent().apply {
+                                action = Intent.ACTION_SEND
+                                putExtra(Intent.EXTRA_TEXT, text)
+                                type = "text/plain"
+                            }
+                            val shareIntent = Intent.createChooser(sendIntent, currentStrings.sharePlatformChooser)
+                            startActivity(shareIntent)
+                        },
+                        onCopyText = { text ->
+                            val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                            val clip = ClipData.newPlainText("Post Link", text)
+                            clipboard.setPrimaryClip(clip)
                         }
-                        val shareIntent = Intent.createChooser(sendIntent, "YOURPLATFORM শেয়ার করুন")
-                        startActivity(shareIntent)
-                    },
-                    onCopyText = { text ->
-                        val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                        val clip = ClipData.newPlainText("Post Link", text)
-                        clipboard.setPrimaryClip(clip)
-                    }
-                )
+                    )
+                }
             }
         }
     }
@@ -99,6 +128,7 @@ fun MainAppContent(
     onShareText: (String) -> Unit,
     onCopyText: (String) -> Unit
 ) {
+    val strings = LocalAppStrings.current
     var showSplash by remember { mutableStateOf(true) }
     var activeSubScreen by remember { mutableStateOf<SubScreen?>(null) }
     var activeCommentPost by remember { mutableStateOf<PostModel?>(null) }
@@ -116,6 +146,7 @@ fun MainAppContent(
     val friends by viewModel.friends.collectAsState()
     val selectedTab by viewModel.selectedTab.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
+    val uploadState by viewModel.uploadState.collectAsState()
 
     val friendsCount = friends.count { it.status == FriendStatus.FRIEND }
     val pendingFriendRequestCount = friends.count { it.status == FriendStatus.INCOMING_REQUEST }
@@ -131,7 +162,6 @@ fun MainAppContent(
         return
     }
 
-    // Handle back button navigation
     BackHandler(enabled = activeSubScreen != null || selectedTab != 0) {
         if (activeSubScreen != null) {
             activeSubScreen = null
@@ -165,7 +195,7 @@ fun MainAppContent(
                     onBack = { activeSubScreen = null },
                     onMarkAllRead = {
                         viewModel.markNotificationsRead()
-                        showSnackbar("সকল নোটিফিকেশন পড়া হিসেবে চিহ্নিত হয়েছে")
+                        showSnackbar(strings.markAllReadSnackbar)
                     }
                 )
             } else if (activeSubScreen == SubScreen.SETTINGS) {
@@ -180,6 +210,7 @@ fun MainAppContent(
             } else if (activeSubScreen == SubScreen.AI_STUDIO) {
                 AiStudioScreen(
                     aiRepository = viewModel.aiRepository,
+                    selectedLanguageCode = settings.selectedLanguageCode,
                     onBack = { activeSubScreen = null },
                     onUseTextInPost = { generatedText ->
                         activeSubScreen = null
@@ -194,23 +225,23 @@ fun MainAppContent(
                     friends = friends,
                     onAcceptRequest = { user ->
                         viewModel.acceptFriendRequest(user.id)
-                        showSnackbar("${user.name}-কে বন্ধু হিসেবে যুক্ত করা হয়েছে! 🤝")
+                        showSnackbar(strings.friendAcceptedSnackbar(user.name))
                     },
                     onDeclineRequest = { user ->
                         viewModel.declineFriendRequest(user.id)
-                        showSnackbar("${user.name}-এর রিকোয়েস্ট মুছে ফেলা হয়েছে")
+                        showSnackbar(strings.friendDeclinedSnackbar(user.name))
                     },
                     onSendRequest = { user ->
                         viewModel.sendFriendRequest(user.id)
-                        showSnackbar("${user.name}-কে ফ্রেন্ড রিকোয়েস্ট পাঠানো হয়েছে!")
+                        showSnackbar(strings.friendRequestSentSnackbar(user.name))
                     },
                     onCancelRequest = { user ->
                         viewModel.cancelFriendRequest(user.id)
-                        showSnackbar("${user.name}-কে পাঠানো রিকোয়েস্ট বাতিল করা হয়েছে")
+                        showSnackbar(strings.friendRequestCancelledSnackbar(user.name))
                     },
                     onUnfriend = { user ->
                         viewModel.unfriend(user.id)
-                        showSnackbar("${user.name}-কে বন্ধু তালিকা থেকে সরানো হয়েছে")
+                        showSnackbar(strings.unfriendedSnackbar(user.name))
                     },
                     onRemoveSuggestion = { user ->
                         viewModel.removeSuggestion(user.id)
@@ -219,26 +250,16 @@ fun MainAppContent(
                 )
             } else {
                 Column(modifier = Modifier.fillMaxSize()) {
-                    // Header (Logo, AI Studio sparkle, Friends, Notifications bell, Profile)
                     AppHeader(
                         userProfile = userProfile,
                         unreadNotificationCount = notifications.count { !it.isRead },
                         pendingFriendRequestCount = pendingFriendRequestCount,
-                        onAiStudioClick = {
-                            activeSubScreen = SubScreen.AI_STUDIO
-                        },
-                        onFriendsClick = {
-                            activeSubScreen = SubScreen.FRIENDS
-                        },
-                        onNotificationClick = {
-                            activeSubScreen = SubScreen.NOTIFICATIONS
-                        },
-                        onProfileClick = {
-                            viewModel.setSelectedTab(4)
-                        }
+                        onAiStudioClick = { activeSubScreen = SubScreen.AI_STUDIO },
+                        onFriendsClick = { activeSubScreen = SubScreen.FRIENDS },
+                        onNotificationClick = { activeSubScreen = SubScreen.NOTIFICATIONS },
+                        onProfileClick = { viewModel.setSelectedTab(4) }
                     )
 
-                    // Tab Views with Animated Transitions
                     AnimatedContent(
                         targetState = selectedTab,
                         transitionSpec = { fadeIn() togetherWith fadeOut() },
@@ -248,32 +269,54 @@ fun MainAppContent(
                             0 -> HomeScreen(
                                 posts = posts,
                                 userProfile = userProfile,
+                                uploadState = uploadState,
                                 friendsCount = friendsCount,
                                 pendingRequestCount = pendingFriendRequestCount,
+                                onRetryUpload = {
+                                    viewModel.retryLastUpload {
+                                        showSnackbar(strings.postPublishedSnackbar)
+                                    }
+                                },
+                                onDismissUpload = { viewModel.dismissUploadState() },
                                 onOpenFriends = { activeSubScreen = SubScreen.FRIENDS },
                                 onOpenCreatePost = { viewModel.setSelectedTab(2) },
                                 onLikePost = { viewModel.toggleLike(it) },
                                 onCommentPost = { post -> activeCommentPost = post },
                                 onSharePost = { post ->
                                     onCopyText("https://yourplatform.app/post/${post.id}")
-                                    showSnackbar("পোস্ট লিংক কপি করা হয়েছে!")
+                                    showSnackbar(strings.postLinkCopied)
                                 },
                                 onDeletePost = { viewModel.deletePost(it) }
                             )
 
-                            1 -> com.example.ui.screens.WavesScreen(
-                                onShareReel = { text ->
-                                    onShareText(text)
-                                }
+                            1 -> WavesScreen(
+                                onShareReel = { text -> onShareText(text) }
                             )
 
                             2 -> CreatePostScreen(
                                 aiRepository = viewModel.aiRepository,
+                                uploadState = uploadState,
+                                selectedLanguageCode = settings.selectedLanguageCode,
                                 initialText = createPostInitialText,
-                                onPostCreated = { text, type, uri ->
-                                    viewModel.addNewPost(text, type, uri)
-                                    createPostInitialText = ""
+                                onSubmitPost = { text, type, uri, previewUri ->
+                                    viewModel.submitPost(
+                                        text = text,
+                                        type = type,
+                                        mediaUri = uri,
+                                        previewUri = previewUri,
+                                        onPublished = {
+                                            createPostInitialText = ""
+                                            showSnackbar(strings.postPublishedSnackbar)
+                                        }
+                                    )
                                 },
+                                onRetryUpload = {
+                                    viewModel.retryLastUpload {
+                                        createPostInitialText = ""
+                                        showSnackbar(strings.postPublishedSnackbar)
+                                    }
+                                },
+                                onDismissUpload = { viewModel.dismissUploadState() },
                                 onShowSnackbar = { showSnackbar(it) }
                             )
 
@@ -284,22 +327,22 @@ fun MainAppContent(
                                 friends = friends,
                                 onSendFriendRequest = { user ->
                                     viewModel.sendFriendRequest(user.id)
-                                    showSnackbar("${user.name}-কে ফ্রেন্ড রিকোয়েস্ট পাঠানো হয়েছে!")
+                                    showSnackbar(strings.friendRequestSentSnackbar(user.name))
                                 },
                                 onAcceptFriendRequest = { user ->
                                     viewModel.acceptFriendRequest(user.id)
-                                    showSnackbar("${user.name}-কে বন্ধু হিসেবে যুক্ত করা হয়েছে! 🤝")
+                                    showSnackbar(strings.friendAcceptedSnackbar(user.name))
                                 },
                                 onCancelFriendRequest = { user ->
                                     viewModel.cancelFriendRequest(user.id)
-                                    showSnackbar("রিকোয়েস্ট বাতিল করা হয়েছে")
+                                    showSnackbar(strings.friendRequestCancelledSnackbar(user.name))
                                 },
                                 onOpenFriendsScreen = { activeSubScreen = SubScreen.FRIENDS },
                                 onLikePost = { viewModel.toggleLike(it) },
                                 onCommentPost = { post -> activeCommentPost = post },
                                 onSharePost = { post ->
                                     onCopyText("https://yourplatform.app/post/${post.id}")
-                                    showSnackbar("পোস্ট লিংক কপি করা হয়েছে!")
+                                    showSnackbar(strings.postLinkCopied)
                                 },
                                 onDeletePost = { viewModel.deletePost(it) }
                             )
@@ -307,11 +350,12 @@ fun MainAppContent(
                             4 -> ProfileScreen(
                                 userProfile = userProfile,
                                 posts = posts,
+                                selectedLanguageCode = settings.selectedLanguageCode,
                                 onLikePost = { viewModel.toggleLike(it) },
                                 onCommentPost = { post -> activeCommentPost = post },
                                 onSharePost = { post ->
                                     onCopyText("https://yourplatform.app/post/${post.id}")
-                                    showSnackbar("পোস্ট লিংক কপি করা হয়েছে!")
+                                    showSnackbar(strings.postLinkCopied)
                                 },
                                 onDeletePost = { viewModel.deletePost(it) },
                                 onUpdateCoverColor = { viewModel.updateCoverColor(it) },
@@ -333,7 +377,6 @@ fun MainAppContent(
                 }
             }
 
-            // Optional Dimming Filter Overlay
             if (settings.isDimmingEnabled && settings.dimmingLevel > 0f) {
                 Box(
                     modifier = Modifier
@@ -344,21 +387,24 @@ fun MainAppContent(
         }
     }
 
-    // Comment Modal Bottom Sheet
     if (activeCommentPost != null) {
         val currentPost = posts.find { it.id == activeCommentPost?.id } ?: activeCommentPost!!
-        var aiSuggestions by remember(currentPost.id) {
-            mutableStateOf(listOf("দারুণ পোস্ট! ❤️", "অনেক ভালো লাগলো 👏", "শুভকামনা রইলো 🌟"))
+        var aiSuggestions by remember(currentPost.id, settings.selectedLanguageCode) {
+            mutableStateOf(strings.defaultCommentSuggestions)
         }
 
-        androidx.compose.runtime.LaunchedEffect(currentPost.id) {
+        LaunchedEffect(currentPost.id, settings.selectedLanguageCode) {
             try {
-                val suggestions = viewModel.aiRepository.generateCommentSuggestions(currentPost.postText)
+                val aiLang = AppStringsRegistry.aiLanguageName(settings.selectedLanguageCode)
+                val suggestions = viewModel.aiRepository.generateCommentSuggestions(
+                    postText = currentPost.postText,
+                    languageName = aiLang,
+                    fallbackSuggestions = strings.defaultCommentSuggestions
+                )
                 if (suggestions.isNotEmpty()) {
                     aiSuggestions = suggestions
                 }
             } catch (_: Exception) {
-                // Keep default suggestions
             }
         }
 
@@ -368,24 +414,22 @@ fun MainAppContent(
             onDismiss = { activeCommentPost = null },
             onAddComment = { commentText ->
                 viewModel.addComment(currentPost.id, commentText)
-                showSnackbar("কমেন্ট সফলভাবে যোগ করা হয়েছে!")
+                showSnackbar(strings.commentAddedSnackbar)
             }
         )
     }
 
-    // QR Code Dialog
     if (showQrDialog) {
         QrCodeDialog(
             userProfile = userProfile,
             onDismiss = { showQrDialog = false },
             onShare = {
-                onShareText("আমার YOURPLATFORM প্রোফাইল চেক করুন: https://yourplatform.app/u/${userProfile.handle.removePrefix("@")}")
+                onShareText("https://yourplatform.app/u/${userProfile.handle.removePrefix("@")}")
                 showQrDialog = false
             }
         )
     }
 
-    // Activity Center Bottom Sheet
     if (showActivityCenter) {
         ActivityCenterSheet(onDismiss = { showActivityCenter = false })
     }

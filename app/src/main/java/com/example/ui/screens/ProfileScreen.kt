@@ -1,11 +1,12 @@
 package com.example.ui.screens
 
+import android.Manifest
+import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
-import kotlinx.coroutines.launch
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -26,10 +27,11 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
@@ -43,6 +45,7 @@ import androidx.compose.material.icons.filled.Login
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PhotoLibrary
+import androidx.compose.material.icons.filled.PlayCircleFilled
 import androidx.compose.material.icons.filled.QrCode
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
@@ -68,6 +71,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -79,12 +83,17 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
 import coil.compose.AsyncImage
+import com.example.data.AiRepository
 import com.example.model.PostModel
 import com.example.model.UserProfile
 import com.example.ui.components.PostCardItem
 import com.example.ui.theme.BrandAccent
 import com.example.ui.theme.BrandPrimary
+import com.example.util.AppStringsRegistry
+import com.example.util.LocalAppStrings
+import kotlinx.coroutines.launch
 import java.io.File
 import java.io.FileOutputStream
 
@@ -93,6 +102,7 @@ import java.io.FileOutputStream
 fun ProfileScreen(
     userProfile: UserProfile,
     posts: List<PostModel>,
+    selectedLanguageCode: String,
     onLikePost: (String) -> Unit,
     onCommentPost: (PostModel) -> Unit,
     onSharePost: (PostModel) -> Unit,
@@ -102,7 +112,7 @@ fun ProfileScreen(
     onUpdateAvatarColor: (Long) -> Unit,
     onUpdateAvatarUri: (String?) -> Unit,
     onUpdateBio: (String) -> Unit,
-    aiRepository: com.example.data.AiRepository,
+    aiRepository: AiRepository,
     friendsCount: Int,
     pendingFriendRequestCount: Int,
     onOpenFriends: () -> Unit,
@@ -112,25 +122,27 @@ fun ProfileScreen(
     onShowSnackbar: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val strings = LocalAppStrings.current
+    val aiLang = AppStringsRegistry.aiLanguageName(selectedLanguageCode)
     val context = LocalContext.current
+
     var selectedTab by remember { mutableIntStateOf(0) }
     var menuExpanded by remember { mutableStateOf(false) }
     var isEditingCover by remember { mutableStateOf(false) }
     var showPhotoPickerSheet by remember { mutableStateOf(false) }
     var showAiBioDialog by remember { mutableStateOf(false) }
     var isGeneratingBio by remember { mutableStateOf(false) }
-    var generatedBioResult by remember { mutableStateOf("") }
-    val coroutineScope = androidx.compose.runtime.rememberCoroutineScope()
+    val coroutineScope = rememberCoroutineScope()
 
     fun saveBitmapToCache(bitmap: Bitmap, prefix: String): String? {
         return try {
             val file = File(context.cacheDir, "${prefix}_${System.currentTimeMillis()}.jpg")
-            val outputStream = FileOutputStream(file)
-            bitmap.compress(Bitmap.CompressFormat.JPEG, 90, outputStream)
-            outputStream.flush()
-            outputStream.close()
+            FileOutputStream(file).use { outputStream ->
+                bitmap.compress(Bitmap.CompressFormat.JPEG, 90, outputStream)
+                outputStream.flush()
+            }
             Uri.fromFile(file).toString()
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             null
         }
     }
@@ -141,10 +153,10 @@ fun ProfileScreen(
         if (uri != null) {
             if (isEditingCover) {
                 onUpdateCoverUri(uri.toString())
-                onShowSnackbar("কভার ফটো আপডেট করা হয়েছে!")
+                onShowSnackbar(strings.coverUpdatedSnackbar)
             } else {
                 onUpdateAvatarUri(uri.toString())
-                onShowSnackbar("প্রোফাইল পিকচার আপডেট করা হয়েছে!")
+                onShowSnackbar(strings.avatarUpdatedSnackbar)
             }
         }
     }
@@ -156,15 +168,26 @@ fun ProfileScreen(
             val uri = saveBitmapToCache(bitmap, if (isEditingCover) "cover" else "avatar")
             if (isEditingCover) {
                 onUpdateCoverUri(uri)
-                onShowSnackbar("কভার ফটো আপডেট করা হয়েছে!")
+                onShowSnackbar(strings.coverUpdatedSnackbar)
             } else {
                 onUpdateAvatarUri(uri)
-                onShowSnackbar("প্রোফাইল পিকচার আপডেট করা হয়েছে!")
+                onShowSnackbar(strings.avatarUpdatedSnackbar)
             }
         }
     }
 
+    val cameraPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) {
+            cameraLauncher.launch(null)
+        } else {
+            onShowSnackbar(strings.cameraPermissionRequired)
+        }
+    }
+
     val userPosts = posts.filter { it.isUserPost }
+    val userMediaPosts = userPosts.filter { !it.mediaUri.isNullOrBlank() || !it.thumbnailUri.isNullOrBlank() }
 
     Column(
         modifier = modifier
@@ -180,7 +203,7 @@ fun ProfileScreen(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = "মাই প্রোফাইল",
+                text = strings.myProfileTitle,
                 style = MaterialTheme.typography.titleMedium.copy(
                     fontWeight = FontWeight.Bold,
                     fontSize = 18.sp
@@ -204,7 +227,7 @@ fun ProfileScreen(
                     onDismissRequest = { menuExpanded = false }
                 ) {
                     DropdownMenuItem(
-                        text = { Text("ইউর প্রোফাইল") },
+                        text = { Text(strings.yourProfileMenu) },
                         leadingIcon = { Icon(Icons.Default.Person, contentDescription = null, tint = BrandPrimary) },
                         onClick = { menuExpanded = false }
                     )
@@ -212,9 +235,9 @@ fun ProfileScreen(
                         text = {
                             Text(
                                 if (pendingFriendRequestCount > 0)
-                                    "বন্ধু ও রিকোয়েস্ট ($pendingFriendRequestCount নতুন)"
+                                    strings.friendsAndRequestsBtn(pendingFriendRequestCount)
                                 else
-                                    "বন্ধু ও ফ্রেন্ড রিকোয়েস্ট"
+                                    strings.friendsAndRequestsBanner
                             )
                         },
                         leadingIcon = { Icon(Icons.Default.Group, contentDescription = null, tint = BrandPrimary) },
@@ -224,7 +247,7 @@ fun ProfileScreen(
                         }
                     )
                     DropdownMenuItem(
-                        text = { Text("প্রোফাইল QR কোড") },
+                        text = { Text(strings.qrCodeMenu) },
                         leadingIcon = { Icon(Icons.Default.QrCode, contentDescription = null, tint = BrandPrimary) },
                         onClick = {
                             menuExpanded = false
@@ -232,7 +255,7 @@ fun ProfileScreen(
                         }
                     )
                     DropdownMenuItem(
-                        text = { Text("অ্যাক্টিভিটি সেন্টার") },
+                        text = { Text(strings.activityCenterMenu) },
                         leadingIcon = { Icon(Icons.Default.LocalActivity, contentDescription = null, tint = BrandPrimary) },
                         onClick = {
                             menuExpanded = false
@@ -240,20 +263,21 @@ fun ProfileScreen(
                         }
                     )
                     DropdownMenuItem(
-                        text = { Text("সেটিং এন্ড প্রাইভেসি") },
+                        text = { Text(strings.settingsMenu) },
                         leadingIcon = { Icon(Icons.Default.Settings, contentDescription = null, tint = BrandPrimary) },
                         onClick = {
                             menuExpanded = false
                             onOpenSettings()
-                        }
+                        },
+                        modifier = Modifier.testTag("profile_settings_menu_item")
                     )
                     HorizontalDivider()
                     DropdownMenuItem(
-                        text = { Text("সাইন ইন / লগআউট", color = BrandAccent) },
+                        text = { Text(strings.signInLogoutMenu, color = BrandAccent) },
                         leadingIcon = { Icon(Icons.Default.Login, contentDescription = null, tint = BrandAccent) },
                         onClick = {
                             menuExpanded = false
-                            onShowSnackbar("বর্তমানে স্থানীয় মোডে সক্রিয় আছেন")
+                            onShowSnackbar(strings.localModeSnackbar)
                         }
                     )
                 }
@@ -266,7 +290,6 @@ fun ProfileScreen(
                 .fillMaxWidth()
                 .height(180.dp)
         ) {
-            // Cover Image / Banner
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -294,7 +317,6 @@ fun ProfileScreen(
                     }
                 }
 
-                // Edit cover button
                 Box(
                     modifier = Modifier
                         .align(Alignment.BottomEnd)
@@ -318,7 +340,6 @@ fun ProfileScreen(
                 }
             }
 
-            // Avatar (overlapping bottom-left)
             Box(
                 modifier = Modifier
                     .align(Alignment.BottomStart)
@@ -351,7 +372,6 @@ fun ProfileScreen(
                     }
                 }
 
-                // Camera button for Avatar
                 Box(
                     modifier = Modifier
                         .align(Alignment.BottomEnd)
@@ -430,7 +450,7 @@ fun ProfileScreen(
                             )
                             Spacer(modifier = Modifier.width(3.dp))
                             Text(
-                                text = "AI বায়ো",
+                                text = strings.aiBioButton,
                                 fontSize = 10.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = BrandPrimary
@@ -450,7 +470,7 @@ fun ProfileScreen(
                         )
                     )
                     Text(
-                        text = "পোস্ট",
+                        text = strings.postsStat,
                         style = MaterialTheme.typography.bodySmall.copy(
                             fontSize = 11.sp,
                             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
@@ -474,7 +494,7 @@ fun ProfileScreen(
                         )
                     )
                     Text(
-                        text = "বন্ধু",
+                        text = strings.friendsStat,
                         style = MaterialTheme.typography.bodySmall.copy(
                             fontSize = 11.sp,
                             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
@@ -491,7 +511,7 @@ fun ProfileScreen(
                         )
                     )
                     Text(
-                        text = "ফলোয়ার্স",
+                        text = strings.followersStat,
                         style = MaterialTheme.typography.bodySmall.copy(
                             fontSize = 11.sp,
                             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
@@ -525,9 +545,9 @@ fun ProfileScreen(
                 Spacer(modifier = Modifier.width(6.dp))
                 Text(
                     text = if (pendingFriendRequestCount > 0)
-                        "বন্ধু ও রিকোয়েস্ট ($pendingFriendRequestCount নতুন)"
+                        strings.friendsAndRequestsBtn(pendingFriendRequestCount)
                     else
-                        "বন্ধু তালিকা ($friendsCount)",
+                        strings.friendsListBtn(friendsCount),
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Bold
                 )
@@ -544,12 +564,12 @@ fun ProfileScreen(
             Tab(
                 selected = selectedTab == 0,
                 onClick = { selectedTab = 0 },
-                text = { Text("আমার পোস্টসমূহ", fontWeight = FontWeight.SemiBold) }
+                text = { Text(strings.myPostsTab, fontWeight = FontWeight.SemiBold) }
             )
             Tab(
                 selected = selectedTab == 1,
                 onClick = { selectedTab = 1 },
-                text = { Text("মিডিয়া গ্যালারি", fontWeight = FontWeight.SemiBold) }
+                text = { Text(strings.mediaGalleryTab, fontWeight = FontWeight.SemiBold) }
             )
         }
 
@@ -563,7 +583,7 @@ fun ProfileScreen(
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        text = "আপনার কোনো পোস্ট নেই।",
+                        text = strings.noUserPostsYet,
                         style = MaterialTheme.typography.bodyMedium.copy(
                             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                         )
@@ -587,29 +607,61 @@ fun ProfileScreen(
                 }
             }
         } else {
-            // Media Gallery Grid
-            LazyVerticalGrid(
-                columns = GridCells.Fixed(3),
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(8.dp),
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                items(9) { index ->
-                    Box(
-                        modifier = Modifier
-                            .aspectRatio(1f)
-                            .clip(RoundedCornerShape(4.dp))
-                            .background(BrandPrimary.copy(alpha = 0.15f + (index % 3) * 0.08f)),
-                        contentAlignment = Alignment.Center
-                    ) {
+            if (userMediaPosts.isEmpty()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(24.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Icon(
                             imageVector = Icons.Default.Image,
-                            contentDescription = "Media item",
-                            tint = BrandPrimary,
-                            modifier = Modifier.size(28.dp)
+                            contentDescription = null,
+                            tint = BrandPrimary.copy(alpha = 0.5f),
+                            modifier = Modifier.size(44.dp)
                         )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = strings.noUserMediaYet,
+                            style = MaterialTheme.typography.bodyMedium.copy(
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                            )
+                        )
+                    }
+                }
+            } else {
+                LazyVerticalGrid(
+                    columns = GridCells.Fixed(3),
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    items(userMediaPosts, key = { it.id }) { post ->
+                        Box(
+                            modifier = Modifier
+                                .aspectRatio(1f)
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(BrandPrimary.copy(alpha = 0.15f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            AsyncImage(
+                                model = post.thumbnailUri ?: post.mediaUri,
+                                contentDescription = "Uploaded media",
+                                modifier = Modifier.fillMaxSize(),
+                                contentScale = ContentScale.Crop
+                            )
+                            if (post.isVideo) {
+                                Icon(
+                                    imageVector = Icons.Filled.PlayCircleFilled,
+                                    contentDescription = null,
+                                    tint = Color.White.copy(alpha = 0.9f),
+                                    modifier = Modifier.size(28.dp)
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -630,13 +682,12 @@ fun ProfileScreen(
                     .padding(bottom = 24.dp)
             ) {
                 Text(
-                    text = if (isEditingCover) "কভার ফটো পরিবর্তন করুন" else "প্রোফাইল পিকচার পরিবর্তন করুন",
+                    text = if (isEditingCover) strings.changeCoverTitle else strings.changeAvatarTitle,
                     style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
                 )
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // Gallery option
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -656,16 +707,23 @@ fun ProfileScreen(
                         modifier = Modifier.size(24.dp)
                     )
                     Spacer(modifier = Modifier.width(16.dp))
-                    Text("গ্যালারি থেকে ছবি পছন্দ করুন", fontSize = 14.sp)
+                    Text(strings.chooseFromGallery, fontSize = 14.sp)
                 }
 
-                // Camera option
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clickable {
                             showPhotoPickerSheet = false
-                            cameraLauncher.launch(null)
+                            val hasCam = ContextCompat.checkSelfPermission(
+                                context,
+                                Manifest.permission.CAMERA
+                            ) == PackageManager.PERMISSION_GRANTED
+                            if (hasCam) {
+                                cameraLauncher.launch(null)
+                            } else {
+                                cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+                            }
                         }
                         .padding(vertical = 12.dp),
                     verticalAlignment = Alignment.CenterVertically
@@ -677,13 +735,12 @@ fun ProfileScreen(
                         modifier = Modifier.size(24.dp)
                     )
                     Spacer(modifier = Modifier.width(16.dp))
-                    Text("ক্যামেরা দিয়ে নতুন ছবি তুলুন", fontSize = 14.sp)
+                    Text(strings.takeCameraPhoto, fontSize = 14.sp)
                 }
 
-                // Preset Color Theme Options
                 Spacer(modifier = Modifier.height(10.dp))
                 Text(
-                    text = "বা কালার থিম নির্ধারণ করুন:",
+                    text = strings.orChooseColorTheme,
                     style = MaterialTheme.typography.bodySmall.copy(
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
                         fontWeight = FontWeight.SemiBold
@@ -707,10 +764,10 @@ fun ProfileScreen(
                                 .clickable {
                                     if (isEditingCover) {
                                         onUpdateCoverColor(colorHex)
-                                        onShowSnackbar("কভার ফটো কালার আপডেট করা হয়েছে!")
+                                        onShowSnackbar(strings.coverColorUpdatedSnackbar)
                                     } else {
                                         onUpdateAvatarColor(colorHex)
-                                        onShowSnackbar("প্রোফাইল পিকচার কালার আপডেট করা হয়েছে!")
+                                        onShowSnackbar(strings.avatarColorUpdatedSnackbar)
                                     }
                                     showPhotoPickerSheet = false
                                 }
@@ -722,7 +779,9 @@ fun ProfileScreen(
     }
 
     if (showAiBioDialog) {
-        var selectedStyle by remember { mutableStateOf("স্মার্ট ও ক্রিয়েটিভ") }
+        var selectedStyle by remember(strings.aiBioStyles) {
+            mutableStateOf(strings.aiBioStyles.firstOrNull() ?: "Smart & Creative")
+        }
         var customBioText by remember { mutableStateOf(userProfile.bio) }
         var bioError by remember { mutableStateOf<String?>(null) }
 
@@ -737,7 +796,7 @@ fun ProfileScreen(
                         modifier = Modifier.size(24.dp)
                     )
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("AI প্রোফাইল বায়ো জেনারেটর", fontWeight = FontWeight.Bold, fontSize = 17.sp)
+                    Text(strings.aiBioDialogTitle, fontWeight = FontWeight.Bold, fontSize = 17.sp)
                 }
             },
             text = {
@@ -748,23 +807,22 @@ fun ProfileScreen(
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     Text(
-                        text = "Gemini AI আপনার জন্য আকর্ষণীয় প্রোফাইল বায়ো লিখে দেবে:",
+                        text = strings.aiBioSubtitle,
                         fontSize = 13.sp,
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
                     )
 
                     Text(
-                        text = "বায়োর ধরন নির্বাচন করুন:",
+                        text = strings.aiBioStyleLabel,
                         fontSize = 12.sp,
                         fontWeight = FontWeight.SemiBold
                     )
 
-                    val styles = listOf("স্মার্ট ও ক্রিয়েটিভ", "প্রফেশনাল", "সংক্ষিপ্ত ও ফানি", "অনুপ্রেরণাদায়ক")
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
-                        styles.forEach { style ->
+                        strings.aiBioStyles.forEach { style ->
                             val isSelected = selectedStyle == style
                             Box(
                                 modifier = Modifier
@@ -791,10 +849,14 @@ fun ProfileScreen(
                                 isGeneratingBio = true
                                 bioError = null
                                 try {
-                                    val generated = aiRepository.generateProfileBio(userProfile.name, selectedStyle)
+                                    val generated = aiRepository.generateProfileBio(
+                                        userName = userProfile.name,
+                                        style = selectedStyle,
+                                        languageName = aiLang
+                                    )
                                     customBioText = generated
                                 } catch (e: Exception) {
-                                    bioError = "বায়ো তৈরিতে সমস্যা হয়েছে: ${e.localizedMessage ?: "চেক ইন্টারনেট"}"
+                                    bioError = e.localizedMessage ?: strings.aiChatError
                                 } finally {
                                     isGeneratingBio = false
                                 }
@@ -813,11 +875,11 @@ fun ProfileScreen(
                                 strokeWidth = 2.dp
                             )
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text("তৈরি হচ্ছে...")
+                            Text(strings.generatingBioLabel)
                         } else {
                             Icon(Icons.Default.AutoAwesome, contentDescription = null, modifier = Modifier.size(16.dp))
                             Spacer(modifier = Modifier.width(6.dp))
-                            Text("✨ AI দিয়ে বায়ো তৈরি করুন")
+                            Text(strings.generateAiBioBtn)
                         }
                     }
 
@@ -828,7 +890,7 @@ fun ProfileScreen(
                     OutlinedTextField(
                         value = customBioText,
                         onValueChange = { customBioText = it },
-                        label = { Text("বায়ো টেক্সট (সম্পাদনাযোগ্য)") },
+                        label = { Text(strings.bioEditableLabel) },
                         modifier = Modifier.fillMaxWidth(),
                         minLines = 2,
                         maxLines = 4
@@ -841,18 +903,18 @@ fun ProfileScreen(
                         if (customBioText.isNotBlank()) {
                             onUpdateBio(customBioText.trim())
                             showAiBioDialog = false
-                            onShowSnackbar("প্রোফাইল বায়ো সফলভাবে আপডেট হয়েছে! ✨")
+                            onShowSnackbar(strings.bioUpdatedSnackbar)
                         }
                     },
                     enabled = customBioText.isNotBlank(),
                     colors = ButtonDefaults.buttonColors(containerColor = BrandPrimary)
                 ) {
-                    Text("সংরক্ষণ করুন")
+                    Text(strings.save)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showAiBioDialog = false }) {
-                    Text("বাতিল")
+                    Text(strings.cancel)
                 }
             }
         )

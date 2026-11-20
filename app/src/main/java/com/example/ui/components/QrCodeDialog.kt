@@ -36,6 +36,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.model.UserProfile
 import com.example.ui.theme.BrandPrimary
+import com.example.util.LocalAppStrings
 
 @Composable
 fun QrCodeDialog(
@@ -43,11 +44,13 @@ fun QrCodeDialog(
     onDismiss: () -> Unit,
     onShare: () -> Unit
 ) {
+    val strings = LocalAppStrings.current
+
     AlertDialog(
         onDismissRequest = onDismiss,
         title = {
             Text(
-                text = "প্রোফাইল QR কোড",
+                text = strings.qrCodeMenu,
                 style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                 modifier = Modifier.fillMaxWidth()
             )
@@ -73,7 +76,6 @@ fun QrCodeDialog(
                         val cellSize = size.width / gridSize
                         val brandColor = BrandPrimary
 
-                        // Draw QR corner squares
                         fun drawFinderPattern(x: Float, y: Float) {
                             drawRect(
                                 color = brandColor,
@@ -96,7 +98,6 @@ fun QrCodeDialog(
                         drawFinderPattern(size.width - cellSize * 2.5f, 0f)
                         drawFinderPattern(0f, size.height - cellSize * 2.5f)
 
-                        // Data dots
                         val dots = listOf(
                             Pair(3, 0), Pair(4, 1), Pair(3, 2), Pair(4, 3), Pair(3, 4),
                             Pair(0, 3), Pair(1, 4), Pair(2, 4), Pair(5, 4), Pair(6, 4),
@@ -126,7 +127,7 @@ fun QrCodeDialog(
                 )
                 Spacer(modifier = Modifier.height(6.dp))
                 Text(
-                    text = "স্ক্যান করে সহজে প্রোফাইল ফলো করুন",
+                    text = strings.qrScanSubtitle,
                     style = MaterialTheme.typography.bodySmall.copy(
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
                         fontSize = 11.sp
@@ -142,16 +143,16 @@ fun QrCodeDialog(
             ) {
                 Icon(
                     imageVector = Icons.Outlined.Share,
-                    contentDescription = "Share",
+                    contentDescription = strings.shareLabel,
                     modifier = Modifier.size(16.dp)
                 )
                 Spacer(modifier = Modifier.width(6.dp))
-                Text("শেয়ার করুন")
+                Text(strings.shareBtn)
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("বন্ধ করুন")
+                Text(strings.close)
             }
         }
     )

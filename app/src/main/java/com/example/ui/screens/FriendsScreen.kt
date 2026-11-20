@@ -65,6 +65,7 @@ import com.example.model.FriendStatus
 import com.example.model.FriendUser
 import com.example.ui.theme.BrandAccent
 import com.example.ui.theme.BrandPrimary
+import com.example.util.LocalAppStrings
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -81,6 +82,7 @@ fun FriendsScreen(
     onShowSnackbar: (String) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
+    val strings = LocalAppStrings.current
     var selectedTab by remember(initialTab) { mutableIntStateOf(initialTab) }
     var searchQuery by remember { mutableStateOf("") }
     var userToUnfriend by remember { mutableStateOf<FriendUser?>(null) }
@@ -108,9 +110,9 @@ fun FriendsScreen(
             TopAppBar(
                 title = {
                     Column {
-                        Text("বন্ধু ও ফ্রেন্ড রিকোয়েস্ট", fontWeight = FontWeight.Bold, fontSize = 17.sp)
+                        Text(strings.friendsTitle, fontWeight = FontWeight.Bold, fontSize = 17.sp)
                         Text(
-                            text = "$totalFriends জন বন্ধু • $totalIncoming টি নতুন রিকোয়েস্ট",
+                            text = strings.friendsHeaderSubtitle(totalFriends, totalIncoming),
                             fontSize = 11.sp,
                             color = Color.White.copy(alpha = 0.85f)
                         )
@@ -123,7 +125,7 @@ fun FriendsScreen(
                     ) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Back"
+                            contentDescription = strings.back
                         )
                     }
                 },
@@ -143,15 +145,14 @@ fun FriendsScreen(
                 .fillMaxSize()
                 .padding(innerPadding)
         ) {
-            // Search box
             OutlinedTextField(
                 value = searchQuery,
                 onValueChange = { searchQuery = it },
-                placeholder = { Text("বন্ধু বা নতুন মানুষ খুঁজুন...", fontSize = 13.sp) },
+                placeholder = { Text(strings.searchFriendsPlaceholder, fontSize = 13.sp) },
                 leadingIcon = {
                     Icon(
                         imageVector = Icons.Default.Search,
-                        contentDescription = "Search Friends",
+                        contentDescription = strings.navSearch,
                         tint = BrandPrimary
                     )
                 },
@@ -160,7 +161,7 @@ fun FriendsScreen(
                         IconButton(onClick = { searchQuery = "" }) {
                             Icon(
                                 imageVector = Icons.Default.Close,
-                                contentDescription = "Clear Search"
+                                contentDescription = strings.close
                             )
                         }
                     }
@@ -173,7 +174,6 @@ fun FriendsScreen(
                     .testTag("friends_search_field")
             )
 
-            // Tabs
             PrimaryTabRow(
                 selectedTabIndex = selectedTab,
                 containerColor = MaterialTheme.colorScheme.surface
@@ -184,7 +184,7 @@ fun FriendsScreen(
                     modifier = Modifier.testTag("tab_friend_requests"),
                     text = {
                         Text(
-                            text = if (totalIncoming > 0) "রিকোয়েস্ট ($totalIncoming)" else "রিকোয়েস্ট",
+                            text = strings.requestsTab(totalIncoming),
                             fontWeight = FontWeight.SemiBold,
                             fontSize = 12.sp,
                             maxLines = 1
@@ -197,7 +197,7 @@ fun FriendsScreen(
                     modifier = Modifier.testTag("tab_friends_list"),
                     text = {
                         Text(
-                            text = "বন্ধু ($totalFriends)",
+                            text = strings.friendsTab(totalFriends),
                             fontWeight = FontWeight.SemiBold,
                             fontSize = 12.sp,
                             maxLines = 1
@@ -210,7 +210,7 @@ fun FriendsScreen(
                     modifier = Modifier.testTag("tab_friend_suggestions"),
                     text = {
                         Text(
-                            text = "সাজেশন ($totalSuggestions)",
+                            text = strings.suggestionsTab(totalSuggestions),
                             fontWeight = FontWeight.SemiBold,
                             fontSize = 12.sp,
                             maxLines = 1
@@ -219,14 +219,13 @@ fun FriendsScreen(
                 )
             }
 
-            // Tab Contents
             when (selectedTab) {
                 0 -> {
                     if (incomingRequests.isEmpty() && outgoingRequests.isEmpty()) {
                         EmptyFriendsState(
                             icon = Icons.Default.PersonAdd,
-                            title = "কোনো ফ্রেন্ড রিকোয়েস্ট নেই",
-                            subtitle = "সাজেশন ট্যাব থেকে নতুন বন্ধুদের রিকোয়েস্ট পাঠাতে পারেন।"
+                            title = strings.emptyRequestsTitle,
+                            subtitle = strings.emptyRequestsSubtitle
                         )
                     } else {
                         LazyColumn(
@@ -237,7 +236,7 @@ fun FriendsScreen(
                             if (incomingRequests.isNotEmpty()) {
                                 item {
                                     Text(
-                                        text = "আগত ফ্রেন্ড রিকোয়েস্ট (${incomingRequests.size})",
+                                        text = strings.incomingRequestsHeader(incomingRequests.size),
                                         style = MaterialTheme.typography.labelLarge.copy(
                                             fontWeight = FontWeight.Bold,
                                             color = BrandPrimary
@@ -257,7 +256,7 @@ fun FriendsScreen(
                                                 Button(
                                                     onClick = {
                                                         onAcceptRequest(user)
-                                                        onShowSnackbar("${user.name}-এর ফ্রেন্ড রিকোয়েস্ট গ্রহণ করা হয়েছে! 🎉")
+                                                        onShowSnackbar(strings.friendAcceptedSnackbar(user.name))
                                                     },
                                                     colors = ButtonDefaults.buttonColors(containerColor = BrandPrimary),
                                                     shape = RoundedCornerShape(10.dp),
@@ -272,12 +271,12 @@ fun FriendsScreen(
                                                         modifier = Modifier.size(16.dp)
                                                     )
                                                     Spacer(modifier = Modifier.width(6.dp))
-                                                    Text("নিশ্চিত করুন", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                                    Text(strings.confirmBtn, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                                                 }
                                                 OutlinedButton(
                                                     onClick = {
                                                         onDeclineRequest(user)
-                                                        onShowSnackbar("রিকোয়েস্ট মুছে ফেলা হয়েছে")
+                                                        onShowSnackbar(strings.friendDeclinedSnackbar(user.name))
                                                     },
                                                     shape = RoundedCornerShape(10.dp),
                                                     modifier = Modifier
@@ -285,7 +284,7 @@ fun FriendsScreen(
                                                         .height(48.dp)
                                                         .testTag("decline_request_${user.id}")
                                                 ) {
-                                                    Text("মুছে ফেলুন", fontSize = 12.sp)
+                                                    Text(strings.deleteRequestBtn, fontSize = 12.sp)
                                                 }
                                             }
                                         }
@@ -297,7 +296,7 @@ fun FriendsScreen(
                                 item {
                                     Spacer(modifier = Modifier.height(6.dp))
                                     Text(
-                                        text = "আপনার পাঠানো রিকোয়েস্ট (${outgoingRequests.size})",
+                                        text = strings.outgoingRequestsHeader(outgoingRequests.size),
                                         style = MaterialTheme.typography.labelLarge.copy(
                                             fontWeight = FontWeight.Bold,
                                             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
@@ -308,12 +307,12 @@ fun FriendsScreen(
                                 items(outgoingRequests, key = { it.id }) { user ->
                                     FriendUserCard(
                                         user = user,
-                                        subtitleExtra = " • রিকোয়েস্ট পাঠানো হয়েছে",
+                                        subtitleExtra = strings.requestSentExtra,
                                         actions = {
                                             OutlinedButton(
                                                 onClick = {
                                                     onCancelRequest(user)
-                                                    onShowSnackbar("ফ্রেন্ড রিকোয়েস্ট বাতিল করা হয়েছে")
+                                                    onShowSnackbar(strings.friendRequestCancelledSnackbar(user.name))
                                                 },
                                                 shape = RoundedCornerShape(10.dp),
                                                 modifier = Modifier
@@ -327,7 +326,7 @@ fun FriendsScreen(
                                                     modifier = Modifier.size(16.dp)
                                                 )
                                                 Spacer(modifier = Modifier.width(6.dp))
-                                                Text("রিকোয়েস্ট বাতিল করুন", fontSize = 12.sp)
+                                                Text(strings.cancelRequestBtn, fontSize = 12.sp)
                                             }
                                         }
                                     )
@@ -341,8 +340,8 @@ fun FriendsScreen(
                     if (acceptedFriends.isEmpty()) {
                         EmptyFriendsState(
                             icon = Icons.Default.Group,
-                            title = "আপনার বন্ধু তালিকা খালি",
-                            subtitle = "রিকোয়েস্ট গ্রহণ করুন অথবা সাজেশন থেকে নতুন বন্ধু যুক্ত করুন।"
+                            title = strings.emptyFriendsTitle,
+                            subtitle = strings.emptyFriendsSubtitle
                         )
                     } else {
                         LazyColumn(
@@ -353,7 +352,7 @@ fun FriendsScreen(
                             items(acceptedFriends, key = { it.id }) { friend ->
                                 FriendUserCard(
                                     user = friend,
-                                    subtitleExtra = if (friend.isOnline) " • অনলাইন" else "",
+                                    subtitleExtra = if (friend.isOnline) strings.onlineExtra else "",
                                     actions = {
                                         Row(
                                             modifier = Modifier.fillMaxWidth(),
@@ -377,7 +376,7 @@ fun FriendsScreen(
                                                     )
                                                     Spacer(modifier = Modifier.width(6.dp))
                                                     Text(
-                                                        text = "বন্ধু আছেন",
+                                                        text = strings.friendsStatusLabel,
                                                         color = BrandPrimary,
                                                         fontWeight = FontWeight.Bold,
                                                         fontSize = 12.sp
@@ -393,12 +392,12 @@ fun FriendsScreen(
                                             ) {
                                                 Icon(
                                                     imageVector = Icons.Default.PersonRemove,
-                                                    contentDescription = "Unfriend",
+                                                    contentDescription = strings.unfriendBtn,
                                                     tint = BrandAccent,
                                                     modifier = Modifier.size(16.dp)
                                                 )
                                                 Spacer(modifier = Modifier.width(4.dp))
-                                                Text("আনফ্রেন্ড", fontSize = 12.sp, color = BrandAccent)
+                                                Text(strings.unfriendBtn, fontSize = 12.sp, color = BrandAccent)
                                             }
                                         }
                                     }
@@ -412,8 +411,8 @@ fun FriendsScreen(
                     if (suggestions.isEmpty()) {
                         EmptyFriendsState(
                             icon = Icons.Default.Group,
-                            title = "কোনো সাজেশন বাকি নেই",
-                            subtitle = "সার্চ করে অথবা রিকোয়েস্ট ট্যাবে আপনার বন্ধুদের দেখুন।"
+                            title = strings.emptySuggestionsTitle,
+                            subtitle = strings.emptySuggestionsSubtitle
                         )
                     } else {
                         LazyColumn(
@@ -423,7 +422,7 @@ fun FriendsScreen(
                         ) {
                             item {
                                 Text(
-                                    text = "আপনি চিনতে পারেন",
+                                    text = strings.peopleYouMayKnow,
                                     style = MaterialTheme.typography.labelLarge.copy(
                                         fontWeight = FontWeight.Bold,
                                         color = BrandPrimary
@@ -442,7 +441,7 @@ fun FriendsScreen(
                                             Button(
                                                 onClick = {
                                                     onSendRequest(person)
-                                                    onShowSnackbar("${person.name}-কে ফ্রেন্ড রিকোয়েস্ট পাঠানো হয়েছে! ✨")
+                                                    onShowSnackbar(strings.friendRequestSentSnackbar(person.name))
                                                 },
                                                 colors = ButtonDefaults.buttonColors(containerColor = BrandPrimary),
                                                 shape = RoundedCornerShape(10.dp),
@@ -457,12 +456,12 @@ fun FriendsScreen(
                                                     modifier = Modifier.size(16.dp)
                                                 )
                                                 Spacer(modifier = Modifier.width(6.dp))
-                                                Text("অ্যাড ফ্রেন্ড", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                                Text(strings.addFriendBtn, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                                             }
                                             OutlinedButton(
                                                 onClick = {
                                                     onRemoveSuggestion(person)
-                                                    onShowSnackbar("সাজেশন থেকে সরানো হয়েছে")
+                                                    onShowSnackbar(strings.suggestionRemovedSnackbar)
                                                 },
                                                 shape = RoundedCornerShape(10.dp),
                                                 modifier = Modifier
@@ -470,7 +469,7 @@ fun FriendsScreen(
                                                     .height(48.dp)
                                                     .testTag("remove_suggestion_${person.id}")
                                             ) {
-                                                Text("সরান", fontSize = 12.sp)
+                                                Text(strings.removeSuggestionBtn, fontSize = 12.sp)
                                             }
                                         }
                                     }
@@ -487,10 +486,10 @@ fun FriendsScreen(
         val target = userToUnfriend!!
         AlertDialog(
             onDismissRequest = { userToUnfriend = null },
-            title = { Text("বন্ধু তালিকা থেকে সরান?", fontWeight = FontWeight.Bold, fontSize = 17.sp) },
+            title = { Text(strings.unfriendDialogTitle, fontWeight = FontWeight.Bold, fontSize = 17.sp) },
             text = {
                 Text(
-                    "আপনি কি নিশ্চিত যে আপনি ${target.name}-কে আপনার বন্ধু তালিকা থেকে সরাতে চান?",
+                    strings.unfriendDialogMessage(target.name),
                     fontSize = 13.sp
                 )
             },
@@ -499,16 +498,16 @@ fun FriendsScreen(
                     onClick = {
                         onUnfriend(target)
                         userToUnfriend = null
-                        onShowSnackbar("${target.name}-কে বন্ধু তালিকা থেকে সরানো হয়েছে")
+                        onShowSnackbar(strings.unfriendedSnackbar(target.name))
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = BrandAccent)
                 ) {
-                    Text("আনফ্রেন্ড করুন")
+                    Text(strings.unfriendConfirmBtn)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { userToUnfriend = null }) {
-                    Text("বাতিল")
+                    Text(strings.cancel)
                 }
             }
         )
@@ -521,6 +520,7 @@ private fun FriendUserCard(
     subtitleExtra: String = "",
     actions: @Composable () -> Unit
 ) {
+    val strings = LocalAppStrings.current
     Card(
         shape = RoundedCornerShape(14.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -532,7 +532,6 @@ private fun FriendUserCard(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                // Avatar with online indicator
                 Box(modifier = Modifier.size(52.dp)) {
                     Box(
                         modifier = Modifier
@@ -609,7 +608,7 @@ private fun FriendUserCard(
 
                     if (user.mutualFriendsCount > 0) {
                         Text(
-                            text = "${user.mutualFriendsCount} জন মিউচুয়াল ফ্রেন্ড",
+                            text = strings.mutualFriendsCount(user.mutualFriendsCount),
                             style = MaterialTheme.typography.bodySmall.copy(
                                 color = BrandPrimary,
                                 fontWeight = FontWeight.Medium,
