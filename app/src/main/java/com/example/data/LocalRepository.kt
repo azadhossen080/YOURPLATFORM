@@ -288,7 +288,7 @@ class LocalRepository(private val context: Context) {
         val isoFormatter = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US)
         val root = JSONObject()
         root.put("app", "YOURPLATFORM")
-        root.put("cloudDatabase", "Firebase Cloud Firestore")
+        root.put("storageMode", "Cloud & Local Sync")
         root.put("communityUrl", COMMUNITY_TELEGRAM_URL)
         root.put("collectedAtMillis", now)
         root.put("collectedAtIso", isoFormatter.format(Date(now)))

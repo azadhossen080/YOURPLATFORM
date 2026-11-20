@@ -89,12 +89,13 @@ fun SettingsScreen(
     settings: AppSettings,
     userPosts: List<PostModel>,
     signedInEmail: String = "",
-    signedInUid: String = "",
+    isSignedIn: Boolean = true,
     onUpdateSettings: (AppSettings) -> Unit,
     onDeletePost: (String) -> Unit,
     onOpenReviewsAndStorage: () -> Unit = {},
     onJoinCommunity: () -> Unit = {},
     onCopyCommunityUrl: () -> Unit = {},
+    onSignIn: () -> Unit = {},
     onLogOut: () -> Unit = {},
     onBack: () -> Unit,
     onShowSnackbar: (String) -> Unit,
@@ -542,7 +543,7 @@ fun SettingsScreen(
                 modifier = Modifier.padding(vertical = 8.dp)
             )
 
-            // Section 6: Account & Cloud Session (Firestore + Log Out)
+            // Section 6: Account Session
             Text(
                 text = strings.auth.accountSessionSection,
                 style = MaterialTheme.typography.titleSmall.copy(
@@ -572,63 +573,79 @@ fun SettingsScreen(
                         Spacer(modifier = Modifier.width(12.dp))
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = strings.auth.signedInWithGoogleLabel,
+                                text = if (isSignedIn) strings.auth.signedInWithGoogleLabel else strings.auth.guestModeLabel,
                                 style = MaterialTheme.typography.labelMedium.copy(
                                     color = BrandPrimary,
                                     fontWeight = FontWeight.Bold
                                 )
                             )
-                            Text(
-                                text = signedInEmail.ifBlank { "Google Account" },
-                                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold)
-                            )
-                            if (signedInUid.isNotBlank()) {
+                            if (isSignedIn) {
                                 Text(
-                                    text = "${strings.auth.firebaseUidLabel} ${signedInUid.take(16)}...",
-                                    style = MaterialTheme.typography.bodySmall.copy(
-                                        fontSize = 11.sp,
-                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                                    )
+                                    text = signedInEmail.ifBlank { "Google Account" },
+                                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold)
                                 )
                             }
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(10.dp))
+                    if (isSignedIn) {
+                        Spacer(modifier = Modifier.height(10.dp))
 
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = Icons.Default.CloudDone,
-                            contentDescription = null,
-                            tint = Color(0xFF009688),
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = strings.auth.firestoreSyncedLabel,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Medium,
-                            color = Color(0xFF009688)
-                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.CloudDone,
+                                contentDescription = null,
+                                tint = Color(0xFF009688),
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = strings.auth.cloudSyncedLabel,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = Color(0xFF009688)
+                            )
+                        }
                     }
 
                     Spacer(modifier = Modifier.height(12.dp))
 
-                    Button(
-                        onClick = { showLogOutConfirm = true },
-                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
-                        shape = RoundedCornerShape(10.dp),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .testTag("settings_logout_button")
-                    ) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.Logout,
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(strings.auth.logOutBtn, fontWeight = FontWeight.Bold)
+                    if (isSignedIn) {
+                        Button(
+                            onClick = { showLogOutConfirm = true },
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(min = 48.dp)
+                                .testTag("settings_logout_button")
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.Logout,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(strings.auth.logOutBtn, fontWeight = FontWeight.Bold)
+                        }
+                    } else {
+                        Button(
+                            onClick = onSignIn,
+                            colors = ButtonDefaults.buttonColors(containerColor = BrandPrimary),
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(min = 48.dp)
+                                .testTag("settings_signin_button")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.AccountCircle,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(strings.auth.signInBtn, fontWeight = FontWeight.Bold)
+                        }
                     }
                 }
             }

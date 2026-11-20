@@ -19,11 +19,13 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Badge
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -87,24 +89,40 @@ fun CreateIdentityDialog(
     }
 
     AlertDialog(
-        onDismissRequest = { if (isEditingExisting) onDismiss() },
+        onDismissRequest = onDismiss,
         properties = DialogProperties(
-            dismissOnBackPress = isEditingExisting,
-            dismissOnClickOutside = isEditingExisting
+            dismissOnBackPress = true,
+            dismissOnClickOutside = true
         ),
         title = {
             Column(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Image(
-                    painter = painterResource(id = R.drawable.ic_app_logo),
-                    contentDescription = "YOURPLATFORM Logo",
-                    modifier = Modifier
-                        .size(54.dp)
-                        .clip(CircleShape),
-                    contentScale = ContentScale.Fit
-                )
+                Box(modifier = Modifier.fillMaxWidth()) {
+                    Image(
+                        painter = painterResource(id = R.drawable.ic_app_logo),
+                        contentDescription = "YOURPLATFORM Logo",
+                        modifier = Modifier
+                            .size(54.dp)
+                            .clip(CircleShape)
+                            .align(Alignment.Center),
+                        contentScale = ContentScale.Fit
+                    )
+                    IconButton(
+                        onClick = onDismiss,
+                        modifier = Modifier
+                            .size(48.dp)
+                            .align(Alignment.TopEnd)
+                            .testTag("identity_close_button")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = strings.close,
+                            tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                        )
+                    }
+                }
                 Spacer(modifier = Modifier.height(10.dp))
                 Text(
                     text = if (isEditingExisting) strings.identity.editIdentityTitle else strings.identity.createIdentityTitle,
@@ -256,10 +274,11 @@ fun CreateIdentityDialog(
             }
         },
         dismissButton = {
-            if (isEditingExisting) {
-                TextButton(onClick = onDismiss) {
-                    Text(strings.cancel)
-                }
+            TextButton(
+                onClick = onDismiss,
+                modifier = Modifier.testTag("identity_cancel_button")
+            ) {
+                Text(strings.cancel)
             }
         }
     )

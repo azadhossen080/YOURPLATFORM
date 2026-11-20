@@ -127,7 +127,9 @@ class MainActivity : ComponentActivity() {
             }
 
             val signedInUser = currentUser
-            if (signedInUser == null) {
+            var bypassAuth by remember { mutableStateOf(false) }
+
+            if (signedInUser == null && !bypassAuth) {
                 val preAuthSettings = remember { LocalRepository(context).loadSettings() }
                 val preAuthStrings = remember(preAuthSettings.selectedLanguageCode) {
                     AppStringsRegistry.forCode(preAuthSettings.selectedLanguageCode)
@@ -146,25 +148,31 @@ class MainActivity : ComponentActivity() {
                     MyApplicationTheme(darkTheme = preAuthSettings.isDarkMode) {
                         AuthScreen(
                             onAuthSuccess = {
+                                bypassAuth = false
                                 currentUser = try {
                                     Firebase.auth.currentUser
                                 } catch (_: Exception) {
                                     null
                                 }
+                            },
+                            onCancelAndUsePlatform = {
+                                bypassAuth = true
                             }
                         )
                     }
                 }
             } else {
-                val uid = signedInUser.uid
+                val uid = signedInUser?.uid ?: "guest"
                 key(uid) {
                     val viewModel: PlatformViewModel = viewModel(key = uid)
-                    LaunchedEffect(uid) {
-                        viewModel.bindAuthenticatedUser(
-                            uid = uid,
-                            googleDisplayName = signedInUser.displayName,
-                            googleEmail = signedInUser.email
-                        )
+                    LaunchedEffect(signedInUser?.uid) {
+                        if (signedInUser != null) {
+                            viewModel.bindAuthenticatedUser(
+                                uid = signedInUser.uid,
+                                googleDisplayName = signedInUser.displayName,
+                                googleEmail = signedInUser.email
+                            )
+                        }
                     }
 
                     val settings by viewModel.settings.collectAsState()
@@ -192,7 +200,10 @@ class MainActivity : ComponentActivity() {
                             credentialManager = credentialManager,
                             scope = authScope,
                             onBeforeAuthSignOut = { viewModel.prepareForSignOut() },
-                            onSignOutComplete = { currentUser = null }
+                            onSignOutComplete = {
+                                bypassAuth = false
+                                currentUser = null
+                            }
                         )
                     }
 
@@ -204,9 +215,10 @@ class MainActivity : ComponentActivity() {
                             val currentStrings = LocalAppStrings.current
                             MainAppContent(
                                 viewModel = viewModel,
-                                signedInEmail = signedInUser.email.orEmpty(),
-                                signedInDisplayName = signedInUser.displayName.orEmpty(),
-                                signedInUid = uid,
+                                signedInEmail = signedInUser?.email.orEmpty(),
+                                signedInDisplayName = signedInUser?.displayName.orEmpty(),
+                                isSignedIn = signedInUser != null,
+                                onRequestSignIn = { bypassAuth = false },
                                 onLogOut = performLogOut,
                                 onShareText = { text ->
                                     val sendIntent = Intent().apply {
@@ -244,7 +256,8 @@ fun MainAppContent(
     viewModel: PlatformViewModel,
     signedInEmail: String,
     signedInDisplayName: String,
-    signedInUid: String,
+    isSignedIn: Boolean,
+    onRequestSignIn: () -> Unit,
     onLogOut: () -> Unit,
     onShareText: (String) -> Unit,
     onCopyText: (String) -> Unit,
@@ -256,6 +269,7 @@ fun MainAppContent(
     var showQrDialog by remember { mutableStateOf(false) }
     var showActivityCenter by remember { mutableStateOf(false) }
     var showEditIdentityDialog by remember { mutableStateOf(false) }
+    var bypassRegistration by remember { mutableStateOf(false) }
     var createPostInitialText by remember { mutableStateOf("") }
 
     val snackbarHostState = remember { SnackbarHostState() }
@@ -282,7 +296,7 @@ fun MainAppContent(
         }
     }
 
-    if (!userProfile.isProfileCreated) {
+    if (isSignedIn && !userProfile.isProfileCreated && !bypassRegistration) {
         CompleteRegistrationScreen(
             currentProfile = userProfile,
             googleEmail = signedInEmail,
@@ -291,7 +305,8 @@ fun MainAppContent(
                 viewModel.createOrUpdateIdentity(name, userId, email, phone)
                 showSnackbar(strings.identity.identitySavedSnackbar)
             },
-            onLogOut = onLogOut
+            onLogOut = onLogOut,
+            onCancelAndUsePlatform = { bypassRegistration = true }
         )
         return
     }
@@ -337,7 +352,7 @@ fun MainAppContent(
                     settings = settings,
                     userPosts = posts.filter { it.isUserPost },
                     signedInEmail = signedInEmail.ifBlank { userProfile.email },
-                    signedInUid = signedInUid,
+                    isSignedIn = isSignedIn,
                     onUpdateSettings = { viewModel.updateSettings(it) },
                     onDeletePost = { viewModel.deletePost(it) },
                     onOpenReviewsAndStorage = { activeSubScreen = SubScreen.REVIEWS_STORAGE },
@@ -345,6 +360,10 @@ fun MainAppContent(
                     onCopyCommunityUrl = {
                         onCopyText(LocalRepository.COMMUNITY_TELEGRAM_URL)
                         showSnackbar(strings.community.communityCopiedSnackbar)
+                    },
+                    onSignIn = {
+                        activeSubScreen = null
+                        onRequestSignIn()
                     },
                     onLogOut = onLogOut,
                     onBack = { activeSubScreen = null },
@@ -547,6 +566,8 @@ fun MainAppContent(
                                 onOpenQrCode = { showQrDialog = true },
                                 onOpenActivityCenter = { showActivityCenter = true },
                                 onOpenSettings = { activeSubScreen = SubScreen.SETTINGS },
+                                isSignedIn = isSignedIn,
+                                onSignInClick = onRequestSignIn,
                                 onLogOut = onLogOut,
                                 onShowSnackbar = { showSnackbar(it) }
                             )

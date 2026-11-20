@@ -122,6 +122,8 @@ fun ProfileScreen(
     onOpenQrCode: () -> Unit,
     onOpenActivityCenter: () -> Unit,
     onOpenSettings: () -> Unit,
+    isSignedIn: Boolean = true,
+    onSignInClick: () -> Unit = {},
     onLogOut: () -> Unit = {},
     onShowSnackbar: (String) -> Unit,
     modifier: Modifier = Modifier
@@ -286,15 +288,27 @@ fun ProfileScreen(
                         modifier = Modifier.testTag("profile_settings_menu_item")
                     )
                     HorizontalDivider()
-                    DropdownMenuItem(
-                        text = { Text(strings.auth.logOutBtn, color = BrandAccent, fontWeight = FontWeight.SemiBold) },
-                        leadingIcon = { Icon(Icons.AutoMirrored.Filled.Logout, contentDescription = null, tint = BrandAccent) },
-                        onClick = {
-                            menuExpanded = false
-                            showLogOutConfirm = true
-                        },
-                        modifier = Modifier.testTag("profile_logout_menu_item")
-                    )
+                    if (isSignedIn) {
+                        DropdownMenuItem(
+                            text = { Text(strings.auth.logOutBtn, color = BrandAccent, fontWeight = FontWeight.SemiBold) },
+                            leadingIcon = { Icon(Icons.AutoMirrored.Filled.Logout, contentDescription = null, tint = BrandAccent) },
+                            onClick = {
+                                menuExpanded = false
+                                showLogOutConfirm = true
+                            },
+                            modifier = Modifier.testTag("profile_logout_menu_item")
+                        )
+                    } else {
+                        DropdownMenuItem(
+                            text = { Text(strings.auth.signInBtn, color = BrandPrimary, fontWeight = FontWeight.SemiBold) },
+                            leadingIcon = { Icon(Icons.Default.Person, contentDescription = null, tint = BrandPrimary) },
+                            onClick = {
+                                menuExpanded = false
+                                onSignInClick()
+                            },
+                            modifier = Modifier.testTag("profile_signin_menu_item")
+                        )
+                    }
                 }
             }
         }

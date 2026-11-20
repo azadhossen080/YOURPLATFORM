@@ -1,5 +1,6 @@
 package com.example.ui.screens
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -26,12 +27,10 @@ import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Badge
-import androidx.compose.material.icons.filled.CloudDone
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Email
-import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Phone
-import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.VerifiedUser
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -39,6 +38,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -82,6 +82,7 @@ import kotlin.random.Random
 @Composable
 fun AuthScreen(
     onAuthSuccess: () -> Unit,
+    onCancelAndUsePlatform: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val strings = LocalAppStrings.current
@@ -93,6 +94,10 @@ fun AuthScreen(
     var isLoading by remember { mutableStateOf(false) }
     var isCheckingSilent by remember { mutableStateOf(true) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
+
+    BackHandler {
+        onCancelAndUsePlatform()
+    }
 
     LaunchedEffect(Unit) {
         GoogleAuthHelper.attemptAutoSignIn(
@@ -116,20 +121,37 @@ fun AuthScreen(
             .testTag("auth_screen"),
         color = MaterialTheme.colorScheme.background
     ) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 20.dp, vertical = 24.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            Column(
+        Box(modifier = Modifier.fillMaxSize()) {
+            IconButton(
+                onClick = onCancelAndUsePlatform,
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .widthIn(max = 520.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(16.dp)
+                    .align(Alignment.TopEnd)
+                    .padding(10.dp)
+                    .size(48.dp)
+                    .testTag("auth_close_button")
             ) {
+                Icon(
+                    imageVector = Icons.Default.Close,
+                    contentDescription = strings.close,
+                    tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.75f),
+                    modifier = Modifier.size(26.dp)
+                )
+            }
+
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 20.dp, vertical = 56.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .widthIn(max = 520.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
                 Box(
                     modifier = Modifier
                         .size(84.dp)
@@ -168,30 +190,6 @@ fun AuthScreen(
                     ),
                     textAlign = TextAlign.Center
                 )
-
-                Surface(
-                    shape = RoundedCornerShape(50),
-                    color = BrandPrimary.copy(alpha = 0.1f)
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.CloudDone,
-                            contentDescription = null,
-                            tint = BrandPrimary,
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = strings.auth.cloudSyncActiveBadge,
-                            color = BrandPrimary,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                    }
-                }
 
                 SingleChoiceSegmentedButtonRow(
                     modifier = Modifier.fillMaxWidth()
@@ -296,43 +294,9 @@ fun AuthScreen(
                                 )
                             }
                         }
-
-                        Surface(
-                            shape = RoundedCornerShape(12.dp),
-                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(12.dp),
-                                verticalAlignment = Alignment.Top
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Info,
-                                    contentDescription = null,
-                                    tint = BrandPrimary,
-                                    modifier = Modifier
-                                        .size(18.dp)
-                                        .padding(top = 2.dp)
-                                )
-                                Spacer(modifier = Modifier.width(10.dp))
-                                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                    Text(
-                                        text = strings.auth.providerDisclosureTitle,
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 12.sp,
-                                        color = MaterialTheme.colorScheme.onSurface
-                                    )
-                                    Text(
-                                        text = strings.auth.providerDisclosureBody,
-                                        fontSize = 11.sp,
-                                        lineHeight = 16.sp,
-                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.78f)
-                                    )
-                                }
-                            }
-                        }
                     }
                 }
+            }
             }
         }
     }
@@ -345,9 +309,13 @@ fun CompleteRegistrationScreen(
     googleName: String,
     onSaveAccount: (name: String, userId: String, email: String, phone: String) -> Unit,
     onLogOut: () -> Unit,
+    onCancelAndUsePlatform: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val strings = LocalAppStrings.current
+    BackHandler {
+        onCancelAndUsePlatform()
+    }
     var name by remember(currentProfile.name, googleName) {
         mutableStateOf(
             when {
@@ -415,22 +383,36 @@ fun CompleteRegistrationScreen(
                         )
                     }
 
-                    TextButton(
-                        onClick = onLogOut,
-                        modifier = Modifier.testTag("registration_logout_button")
-                    ) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.Logout,
-                            contentDescription = strings.auth.logOutBtn,
-                            tint = MaterialTheme.colorScheme.error,
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = strings.auth.logOutBtn,
-                            color = MaterialTheme.colorScheme.error,
-                            fontWeight = FontWeight.SemiBold
-                        )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        TextButton(
+                            onClick = onLogOut,
+                            modifier = Modifier.testTag("registration_logout_button")
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.Logout,
+                                contentDescription = strings.auth.logOutBtn,
+                                tint = MaterialTheme.colorScheme.error,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = strings.auth.logOutBtn,
+                                color = MaterialTheme.colorScheme.error,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+                        IconButton(
+                            onClick = onCancelAndUsePlatform,
+                            modifier = Modifier
+                                .size(48.dp)
+                                .testTag("registration_close_button")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Close,
+                                contentDescription = strings.close,
+                                tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.75f)
+                            )
+                        }
                     }
                 }
 
@@ -549,20 +531,6 @@ fun CompleteRegistrationScreen(
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.SemiBold,
                                 color = BrandPrimary
-                            )
-                        }
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                imageVector = Icons.Default.Security,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
-                                modifier = Modifier.size(16.dp)
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = strings.auth.appCheckProtectedBadge,
-                                fontSize = 11.sp,
-                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.75f)
                             )
                         }
                     }
