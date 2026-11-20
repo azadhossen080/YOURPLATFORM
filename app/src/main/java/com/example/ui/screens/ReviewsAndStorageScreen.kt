@@ -20,7 +20,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.CloudDone
 import androidx.compose.material.icons.filled.ContentCopy
@@ -64,7 +63,6 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.data.LocalRepository
 import com.example.model.ReviewModel
 import com.example.model.ReviewStatus
 import com.example.model.UserProfile
@@ -97,7 +95,6 @@ fun ReviewsAndStorageScreen(
     onExportUserData: () -> File?,
     onShareJsonText: (String) -> Unit,
     onCopyText: (String) -> Unit,
-    onOpenExternalUrl: (String) -> Unit,
     onShowSnackbar: (String) -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier
@@ -215,49 +212,14 @@ fun ReviewsAndStorageScreen(
 
                         HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
 
-                        // TeraBox Storage Reference URL Row
+                        // Cloud Firestore & Local JSON Storage Summary
                         Text(
                             text = strings.reviewsStorage.storageLinkLabel,
                             style = MaterialTheme.typography.labelMedium.copy(
                                 fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.75f)
+                                color = BrandPrimary
                             )
                         )
-                        Surface(
-                            shape = RoundedCornerShape(10.dp),
-                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 12.dp, vertical = 8.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    text = LocalRepository.EXTERNAL_STORAGE_URL,
-                                    style = MaterialTheme.typography.bodySmall.copy(
-                                        fontSize = 11.sp,
-                                        color = BrandPrimary
-                                    ),
-                                    modifier = Modifier.weight(1f)
-                                )
-                                IconButton(
-                                    onClick = {
-                                        onCopyText(LocalRepository.EXTERNAL_STORAGE_URL)
-                                        onShowSnackbar(strings.copiedSnackbar)
-                                    },
-                                    modifier = Modifier.size(32.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.ContentCopy,
-                                        contentDescription = strings.copyBtn,
-                                        modifier = Modifier.size(16.dp),
-                                        tint = BrandPrimary
-                                    )
-                                }
-                            }
-                        }
 
                         Text(
                             text = strings.reviewsStorage.storageNoticeText,
@@ -343,7 +305,7 @@ fun ReviewsAndStorageScreen(
 
                         Row(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
+                            horizontalArrangement = Arrangement.Start,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             TextButton(
@@ -351,14 +313,6 @@ fun ReviewsAndStorageScreen(
                                 modifier = Modifier.testTag("toggle_json_preview_button")
                             ) {
                                 Text(strings.reviewsStorage.jsonPreviewTitle, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                            }
-                            TextButton(
-                                onClick = { onOpenExternalUrl(LocalRepository.EXTERNAL_STORAGE_URL) },
-                                modifier = Modifier.testTag("open_terabox_link_button")
-                            ) {
-                                Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null, modifier = Modifier.size(15.dp))
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text(strings.reviewsStorage.openStorageLinkBtn, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                             }
                         }
 

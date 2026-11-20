@@ -186,11 +186,12 @@ class ExampleRobolectricTest {
         assertNotNull(exportedFile)
         assertTrue(exportedFile!!.exists())
         val content = exportedFile.readText()
+        assertFalse(content.contains("terabox", ignoreCase = true))
         val parsed = org.json.JSONObject(content)
-        assertEquals(
-            "https://1024terabox.com/s/1c-9JfS24NJeK7eox0Slajw",
-            parsed.getString("externalStorageReferenceUrl")
-        )
+        assertEquals("Firebase Cloud Firestore", parsed.getString("cloudDatabase"))
+        assertEquals("https://t.me/sazadofficialbd", parsed.getString("communityUrl"))
+        assertEquals("https://t.me/sazadofficialbd", AppStringsRegistry.forCode("en_US").community.communityUrlLabel)
+        assertEquals("Join It", AppStringsRegistry.forCode("bn_BD").community.joinItBtn)
         val parsedProfile = parsed.getJSONObject("userProfile")
         assertEquals("sara_id_01", parsedProfile.getString("userId"))
         assertEquals("Sara Khan", parsedProfile.getString("userName"))

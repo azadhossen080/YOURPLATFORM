@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -19,11 +20,18 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForwardIos
+import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Forum
 import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.rounded.VideoCall
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -31,14 +39,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import coil.compose.AsyncImage
+import com.example.data.LocalRepository
 import com.example.model.PostModel
-import com.example.model.UserProfile
 import com.example.ui.components.PostCardItem
 import com.example.ui.components.UploadProgressCard
 import com.example.ui.theme.BrandAccent
@@ -49,7 +56,6 @@ import com.example.viewmodel.PostUploadState
 @Composable
 fun HomeScreen(
     posts: List<PostModel>,
-    userProfile: UserProfile,
     uploadState: PostUploadState,
     friendsCount: Int,
     pendingRequestCount: Int,
@@ -57,6 +63,8 @@ fun HomeScreen(
     onDismissUpload: () -> Unit,
     onOpenFriends: () -> Unit,
     onOpenCreatePost: () -> Unit,
+    onJoinCommunity: () -> Unit,
+    onCopyCommunityUrl: () -> Unit,
     onLikePost: (String) -> Unit,
     onCommentPost: (PostModel) -> Unit,
     onSharePost: (PostModel) -> Unit,
@@ -83,7 +91,7 @@ fun HomeScreen(
             }
         }
 
-        // Quick create post card
+        // Quick create post card (compose icon instead of top-left profile icon)
         item {
             Card(
                 shape = RoundedCornerShape(12.dp),
@@ -104,27 +112,16 @@ fun HomeScreen(
                     Box(
                         modifier = Modifier
                             .size(38.dp)
-                            .clip(CircleShape)
-                            .background(Color(userProfile.avatarColorHex)),
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(BrandPrimary.copy(alpha = 0.12f)),
                         contentAlignment = Alignment.Center
                     ) {
-                        if (userProfile.avatarImageUri != null) {
-                            AsyncImage(
-                                model = userProfile.avatarImageUri,
-                                contentDescription = strings.navProfile,
-                                modifier = Modifier
-                                    .size(38.dp)
-                                    .clip(CircleShape),
-                                contentScale = ContentScale.Crop
-                            )
-                        } else {
-                            Text(
-                                text = userProfile.displayInitial,
-                                color = Color.White,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 16.sp
-                            )
-                        }
+                        Icon(
+                            imageVector = Icons.Default.Edit,
+                            contentDescription = strings.navCreatePost,
+                            tint = BrandPrimary,
+                            modifier = Modifier.size(20.dp)
+                        )
                     }
 
                     Spacer(modifier = Modifier.width(12.dp))
@@ -132,7 +129,7 @@ fun HomeScreen(
                     Text(
                         text = strings.quickCreatePrompt,
                         style = MaterialTheme.typography.bodyMedium.copy(
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
                             fontSize = 13.sp
                         ),
                         modifier = Modifier.weight(1f)
@@ -157,7 +154,7 @@ fun HomeScreen(
                 ),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(bottom = 12.dp)
+                    .padding(bottom = 10.dp)
                     .clickable { onOpenFriends() }
                     .testTag("home_friends_banner")
             ) {
@@ -231,6 +228,102 @@ fun HomeScreen(
                             contentDescription = strings.friendsRequestsDesc,
                             tint = BrandPrimary,
                             modifier = Modifier.size(14.dp)
+                        )
+                    }
+                }
+            }
+        }
+
+        // Official Community ("Join It") Banner
+        item {
+            Card(
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.45f)
+                ),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 12.dp)
+                    .testTag("home_community_card")
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 14.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(38.dp)
+                            .clip(CircleShape)
+                            .background(BrandPrimary),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Forum,
+                            contentDescription = strings.community.communitySectionTitle,
+                            tint = Color.White,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = strings.community.communityCardTitle,
+                            style = MaterialTheme.typography.titleSmall.copy(
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                fontSize = 13.sp
+                            ),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Text(
+                            text = LocalRepository.COMMUNITY_TELEGRAM_URL,
+                            style = MaterialTheme.typography.bodySmall.copy(
+                                color = BrandPrimary,
+                                fontWeight = FontWeight.Medium,
+                                fontSize = 11.sp
+                            ),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+
+                    IconButton(
+                        onClick = onCopyCommunityUrl,
+                        modifier = Modifier
+                            .size(48.dp)
+                            .testTag("home_copy_community_button")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.ContentCopy,
+                            contentDescription = strings.copyBtn,
+                            tint = BrandPrimary,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+
+                    Button(
+                        onClick = onJoinCommunity,
+                        colors = ButtonDefaults.buttonColors(containerColor = BrandPrimary),
+                        shape = RoundedCornerShape(10.dp),
+                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
+                        modifier = Modifier
+                            .heightIn(min = 48.dp)
+                            .testTag("join_community_button")
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.Send,
+                            contentDescription = null,
+                            modifier = Modifier.size(15.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = strings.community.joinItBtn,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold
                         )
                     }
                 }

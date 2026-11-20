@@ -236,7 +236,17 @@ data class AppStrings(
     // Grouped sub-modules to keep AppStrings constructor well under JVM parameter limit
     val identity: IdentityStrings,
     val reviewsStorage: ReviewsStorageStrings,
-    val auth: AuthStrings
+    val auth: AuthStrings,
+    val community: CommunityStrings
+)
+
+data class CommunityStrings(
+    val communitySectionTitle: String,
+    val communityCardTitle: String,
+    val communityCardSubtitle: String,
+    val communityUrlLabel: String,
+    val joinItBtn: String,
+    val communityCopiedSnackbar: String
 )
 
 data class AuthStrings(
@@ -297,7 +307,6 @@ data class ReviewsStorageStrings(
     val collectExportJsonBtn: String,
     val shareBackupDataBtn: String,
     val copyJsonBtn: String,
-    val openStorageLinkBtn: String,
     val exportSuccessSnackbar: (String) -> String,
     val exportFailedSnackbar: String,
     val jsonPreviewTitle: String,

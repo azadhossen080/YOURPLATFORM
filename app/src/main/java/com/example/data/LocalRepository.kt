@@ -30,7 +30,7 @@ class LocalRepository(private val context: Context) {
         private const val KEY_REVIEWS = "reviews_json"
         private const val KEY_LAST_EXPORT_PATH = "last_export_path"
         private const val KEY_LAST_EXPORT_TIME = "last_export_time"
-        const val EXTERNAL_STORAGE_URL = "https://1024terabox.com/s/1c-9JfS24NJeK7eox0Slajw"
+        const val COMMUNITY_TELEGRAM_URL = "https://t.me/sazadofficialbd"
     }
 
     fun loadPosts(): List<PostModel> {
@@ -288,7 +288,8 @@ class LocalRepository(private val context: Context) {
         val isoFormatter = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US)
         val root = JSONObject()
         root.put("app", "YOURPLATFORM")
-        root.put("externalStorageReferenceUrl", EXTERNAL_STORAGE_URL)
+        root.put("cloudDatabase", "Firebase Cloud Firestore")
+        root.put("communityUrl", COMMUNITY_TELEGRAM_URL)
         root.put("collectedAtMillis", now)
         root.put("collectedAtIso", isoFormatter.format(Date(now)))
 

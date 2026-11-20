@@ -243,12 +243,11 @@ val BengaliStrings = AppStrings(
         reviewsAndStorageMenu = "রিভিউ ও ইউজার ডেটা স্টোরেজ",
         reviewsAndStorageSubtitle = "সকল রিভিউ নিয়ন্ত্রণ করুন এবং ইউজার ডেটা সংগ্রহ/এক্সপোর্ট করুন",
         storageSummaryTitle = "সংগৃহীত ইউজার ডেটা স্টোরেজ",
-        storageLinkLabel = "এক্সটার্নাল স্টোরেজ লিংক (TeraBox)",
-        storageNoticeText = "অ্যাপের সকল ইউজার ডেটা, প্রোফাইল, পোস্ট ও রিভিউ ডিভাইসের লোকাল JSON স্টোরেজে সংরক্ষিত ও সংগৃহীত আছে। যেহেতু TeraBox /s/ লিংক একটি রিড-ওনলি শেয়ার লিংক (অটো রাইট API নয়), তাই এখান থেকে JSON এক্সপোর্ট/শেয়ার করে ম্যানুয়ালি ব্যাকআপ রাখতে পারবেন।",
+        storageLinkLabel = "ক্লাউড Firestore ও লোকাল JSON স্টোরেজ",
+        storageNoticeText = "অ্যাপের সকল ইউজার ডেটা, প্রোফাইল, পোস্ট ও রিভিউ নিরাপদে Firebase Cloud Firestore এবং ডিভাইসের লোকাল JSON স্টোরেজে সংরক্ষিত আছে। এখান থেকে যেকোনো সময় JSON ব্যাকআপ এক্সপোর্ট বা শেয়ার করতে পারবেন।",
         collectExportJsonBtn = "ডেটা সংগ্রহ ও JSON এক্সপোর্ট",
         shareBackupDataBtn = "ব্যাকআপ শেয়ার করুন",
         copyJsonBtn = "JSON কপি",
-        openStorageLinkBtn = "TeraBox লিংক খুলুন",
         exportSuccessSnackbar = { name -> "ইউজার ডেটা ফাইল সংরক্ষিত হয়েছে: $name" },
         exportFailedSnackbar = "ডেটা এক্সপোর্টে সমস্যা হয়েছে",
         jsonPreviewTitle = "সংগৃহীত ইউজার ডেটা প্রিভিউ (JSON)",
@@ -306,6 +305,14 @@ val BengaliStrings = AppStrings(
         logOutConfirmTitle = "অ্যাকাউন্ট থেকে লগআউট?",
         logOutConfirmMessage = "আপনার সকল ডেটা Cloud Firestore-এ নিরাপদে সংরক্ষিত থাকবে। আপনি কি লগআউট করতে চান?",
         loggedOutSnackbar = "সফলভাবে লগআউট সম্পন্ন হয়েছে!"
+    ),
+    community = CommunityStrings(
+        communitySectionTitle = "কমিউনিটি (Community)",
+        communityCardTitle = "YOURPLATFORM অফিসিয়াল কমিউনিটি",
+        communityCardSubtitle = "সবাই মিলে আপডেট, সাপোর্ট ও আলোচনার জন্য টেলিগ্রাম চ্যানেলে যুক্ত হোন",
+        communityUrlLabel = "https://t.me/sazadofficialbd",
+        joinItBtn = "Join It",
+        communityCopiedSnackbar = "কমিউনিটি লিংক কপি করা হয়েছে!"
     )
 )
 
@@ -552,12 +559,11 @@ val EnglishStrings = AppStrings(
         reviewsAndStorageMenu = "Reviews & User Data Storage",
         reviewsAndStorageSubtitle = "Control all reviews and collect/export all user data",
         storageSummaryTitle = "Collected User Data Storage",
-        storageLinkLabel = "External Storage Link (TeraBox)",
-        storageNoticeText = "All user profile info, User ID, posts, friends, and reviews are collected into persistent on-device JSON storage. Because a TeraBox /s/ share link is read-only without a writable database API, export or share your JSON bundle below to back up manually.",
+        storageLinkLabel = "Cloud Firestore & Local JSON Storage",
+        storageNoticeText = "All user profile info, User ID, posts, friends, and reviews are securely synced with Firebase Cloud Firestore and persistent on-device JSON storage. Export or share your full JSON bundle anytime below.",
         collectExportJsonBtn = "Collect & Export JSON",
         shareBackupDataBtn = "Share Backup Data",
         copyJsonBtn = "Copy JSON",
-        openStorageLinkBtn = "Open TeraBox Link",
         exportSuccessSnackbar = { name -> "User data saved to: $name" },
         exportFailedSnackbar = "Could not export user data",
         jsonPreviewTitle = "Collected User Data Preview (JSON)",
@@ -615,6 +621,14 @@ val EnglishStrings = AppStrings(
         logOutConfirmTitle = "Log out of your account?",
         logOutConfirmMessage = "Your profile, posts, friends, and reviews remain safely saved in Cloud Firestore. Continue to log out?",
         loggedOutSnackbar = "Logged out successfully!"
+    ),
+    community = CommunityStrings(
+        communitySectionTitle = "Community",
+        communityCardTitle = "Official YOURPLATFORM Community",
+        communityCardSubtitle = "Join our Telegram channel for updates, news, and community support",
+        communityUrlLabel = "https://t.me/sazadofficialbd",
+        joinItBtn = "Join It",
+        communityCopiedSnackbar = "Community link copied!"
     )
 )
 

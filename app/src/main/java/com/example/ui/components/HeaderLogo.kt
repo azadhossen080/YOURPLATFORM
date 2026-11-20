@@ -2,7 +2,6 @@ package com.example.ui.components
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -34,22 +33,18 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import coil.compose.AsyncImage
 import com.example.R
-import com.example.model.UserProfile
 import com.example.ui.theme.BrandAccent
 import com.example.ui.theme.BrandPrimary
 import com.example.util.LocalAppStrings
 
 @Composable
 fun AppHeader(
-    userProfile: UserProfile,
     unreadNotificationCount: Int,
     pendingFriendRequestCount: Int,
     onAiStudioClick: () -> Unit,
     onFriendsClick: () -> Unit,
     onNotificationClick: () -> Unit,
-    onProfileClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val strings = LocalAppStrings.current
@@ -172,34 +167,6 @@ fun AppHeader(
                         contentDescription = strings.notificationsDesc,
                         tint = BrandPrimary,
                         modifier = Modifier.size(26.dp)
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.width(6.dp))
-
-            Box(
-                modifier = Modifier
-                    .size(32.dp)
-                    .clip(CircleShape)
-                    .background(Color(userProfile.avatarColorHex))
-                    .clickable { onProfileClick() }
-                    .testTag("header_profile_avatar"),
-                contentAlignment = Alignment.Center
-            ) {
-                if (userProfile.avatarImageUri != null) {
-                    AsyncImage(
-                        model = userProfile.avatarImageUri,
-                        contentDescription = "Avatar",
-                        modifier = Modifier.size(32.dp).clip(CircleShape),
-                        contentScale = ContentScale.Crop
-                    )
-                } else {
-                    Text(
-                        text = userProfile.displayInitial,
-                        color = Color.White,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 14.sp
                     )
                 }
             }

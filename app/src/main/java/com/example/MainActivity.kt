@@ -341,6 +341,11 @@ fun MainAppContent(
                     onUpdateSettings = { viewModel.updateSettings(it) },
                     onDeletePost = { viewModel.deletePost(it) },
                     onOpenReviewsAndStorage = { activeSubScreen = SubScreen.REVIEWS_STORAGE },
+                    onJoinCommunity = { onOpenUrl(LocalRepository.COMMUNITY_TELEGRAM_URL) },
+                    onCopyCommunityUrl = {
+                        onCopyText(LocalRepository.COMMUNITY_TELEGRAM_URL)
+                        showSnackbar(strings.community.communityCopiedSnackbar)
+                    },
                     onLogOut = onLogOut,
                     onBack = { activeSubScreen = null },
                     onShowSnackbar = { showSnackbar(it) }
@@ -372,7 +377,6 @@ fun MainAppContent(
                     onExportUserData = { viewModel.exportCollectedUserData() },
                     onShareJsonText = { json -> onShareText(json) },
                     onCopyText = { text -> onCopyText(text) },
-                    onOpenExternalUrl = { url -> onOpenUrl(url) },
                     onShowSnackbar = { showSnackbar(it) },
                     onBack = { activeSubScreen = null }
                 )
@@ -420,13 +424,11 @@ fun MainAppContent(
             } else {
                 Column(modifier = Modifier.fillMaxSize()) {
                     AppHeader(
-                        userProfile = userProfile,
                         unreadNotificationCount = notifications.count { !it.isRead },
                         pendingFriendRequestCount = pendingFriendRequestCount,
                         onAiStudioClick = { activeSubScreen = SubScreen.AI_STUDIO },
                         onFriendsClick = { activeSubScreen = SubScreen.FRIENDS },
-                        onNotificationClick = { activeSubScreen = SubScreen.NOTIFICATIONS },
-                        onProfileClick = { viewModel.setSelectedTab(4) }
+                        onNotificationClick = { activeSubScreen = SubScreen.NOTIFICATIONS }
                     )
 
                     AnimatedContent(
@@ -437,7 +439,6 @@ fun MainAppContent(
                         when (tab) {
                             0 -> HomeScreen(
                                 posts = posts,
-                                userProfile = userProfile,
                                 uploadState = uploadState,
                                 friendsCount = friendsCount,
                                 pendingRequestCount = pendingFriendRequestCount,
@@ -449,6 +450,11 @@ fun MainAppContent(
                                 onDismissUpload = { viewModel.dismissUploadState() },
                                 onOpenFriends = { activeSubScreen = SubScreen.FRIENDS },
                                 onOpenCreatePost = { viewModel.setSelectedTab(2) },
+                                onJoinCommunity = { onOpenUrl(LocalRepository.COMMUNITY_TELEGRAM_URL) },
+                                onCopyCommunityUrl = {
+                                    onCopyText(LocalRepository.COMMUNITY_TELEGRAM_URL)
+                                    showSnackbar(strings.community.communityCopiedSnackbar)
+                                },
                                 onLikePost = { viewModel.toggleLike(it) },
                                 onCommentPost = { post -> activeCommentPost = post },
                                 onSharePost = { post ->
